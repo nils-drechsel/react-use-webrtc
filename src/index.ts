@@ -1,4 +1,4 @@
-export { useWebRtc } from "./lib/useWebRtc";
+export { useWebRtcManager } from "./lib/useWebRtcManager";
 export { WebRtcContext } from "./lib/WebRtcContext";
 export { WebRtcProvider } from "./lib/WebRtcProvider";
 export { WebRtcManager } from "./lib/WebRtcManager";

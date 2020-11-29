@@ -15,13 +15,14 @@ const config = {
 
 export interface MediaStreamProvider {
     addMediaStream(bundleId: string, streamId: string, stream: MediaStream): void;
+    //addMediaData(bundleId: string, dataId: string, data: any): void;
     removeMediaStream(bundleId: string, streamId: string): void;
     removeMediaStreams(bundleId: string): void;
 }
 
 export interface SignallingChannel {
-    addListener(message: string, callback: (payload: any, fromSid: string) => void): void;
-    send(message: string, payload: any, remoteSid: string): void;
+    addListener(message: string, callback: (payload: any, fromSid?: string | null) => void): void;
+    send(message: string, payload: any, toSid?: string | null): void;
 }
 
 interface Connection {
@@ -34,12 +35,13 @@ interface Connection {
 
 export class WebRtcManager {
 
-    sid: string | null = null;
+    sid: string | null;
     signallingChannel: SignallingChannel;
     connections: Map<string, Connection> = new Map();
     mediaStreamProvider: MediaStreamProvider;
 
-    constructor(signallingChannel: SignallingChannel, mediaStreamProvider: MediaStreamProvider) {
+    constructor(signallingChannel: SignallingChannel, mediaStreamProvider: MediaStreamProvider, sid: string) {
+        this.sid = sid;
         this.signallingChannel = signallingChannel;
         this.mediaStreamProvider = mediaStreamProvider;
         this.signallingChannel.addListener(RtcMessage.RTC_ICE, (payload, fromSid) => this.iceListener(fromSid!, payload));
@@ -94,7 +96,7 @@ export class WebRtcManager {
     addStream(remoteSid: string, stream: MediaStream) {
         const connection = this.connections.has(remoteSid) ? this.connections.get(remoteSid) : this.createP2pConnection(remoteSid);
         if (!connection) return;
-        stream.getTracks().forEach(track => connection.pc.addTrack(track));
+        stream.getTracks().forEach(track => connection.pc.addTrack(track, stream));
     }
 
     private createP2pConnection(remoteSid: string): Connection | null {

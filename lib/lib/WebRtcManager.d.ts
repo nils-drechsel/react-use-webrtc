@@ -4,8 +4,8 @@ export interface MediaStreamProvider {
     removeMediaStreams(bundleId: string): void;
 }
 export interface SignallingChannel {
-    addListener(message: string, callback: (payload: any, fromSid: string) => void): void;
-    send(message: string, payload: any, remoteSid: string): void;
+    addListener(message: string, callback: (payload: any, fromSid?: string | null) => void): void;
+    send(message: string, payload: any, toSid?: string | null): void;
 }
 interface Connection {
     pc: RTCPeerConnection;
@@ -18,7 +18,7 @@ export declare class WebRtcManager {
     signallingChannel: SignallingChannel;
     connections: Map<string, Connection>;
     mediaStreamProvider: MediaStreamProvider;
-    constructor(signallingChannel: SignallingChannel, mediaStreamProvider: MediaStreamProvider);
+    constructor(signallingChannel: SignallingChannel, mediaStreamProvider: MediaStreamProvider, sid: string);
     isPolite(remoteSid: string): boolean;
     private iceListener;
     private descriptionListener;
