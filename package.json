@@ -1,6 +1,6 @@
 {
   "name": "react-use-webrtc",
-  "version": "1.0.6",
+  "version": "1.1.10",
   "description": "",
   "main": "lib/index.js",
   "scripts": {
@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@types/uuid": "^8.3.0",
-    "uuid": "^8.3.1"
+    "uuid": "^8.3.1",
+    "webrtc-adapter": "^7.7.0"
   }
 }

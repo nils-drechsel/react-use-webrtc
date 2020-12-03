@@ -1,0 +1,1 @@
+{"version":3,"file":"useWebRtcManager.js","sourceRoot":"","sources":["../../src/lib/useWebRtcManager.ts"],"names":[],"mappings":";;;;;AAAA,iCAAmC;AACnC,oEAA4C;AAE5C,oEAAqC;AAGxB,QAAA,gBAAgB,GAAG,GAAkB,EAAE;IAChD,wBAAO,CAAC,cAAc,CAAC,OAAO,CAAC;IAC/B,OAAO,kBAAU,CAAC,uBAAa,CAAkB,CAAC;AACtD,CAAC,CAAA"}

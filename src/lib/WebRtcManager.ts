@@ -1,5 +1,4 @@
 import { RtcMessage } from "./RtcMessage";
-import { v4 as uuidv4 } from 'uuid';
 
 
 const config = {
@@ -14,10 +13,9 @@ const config = {
 
 
 export interface MediaStreamProvider {
-    addMediaStream(bundleId: string, streamId: string, stream: MediaStream): void;
+    addMediaStream(bundleId: string, streamId: string, stream: MediaStream, trackId: string): void;
     //addMediaData(bundleId: string, dataId: string, data: any): void;
-    removeMediaStream(bundleId: string, streamId: string): void;
-    removeMediaStreams(bundleId: string): void;
+    removeMediaObject(bundleId: string, streamId: string): void;
 }
 
 export interface SignallingChannel {
@@ -39,8 +37,10 @@ export class WebRtcManager {
     signallingChannel: SignallingChannel;
     connections: Map<string, Connection> = new Map();
     mediaStreamProvider: MediaStreamProvider;
+    logging: boolean;
 
-    constructor(signallingChannel: SignallingChannel, mediaStreamProvider: MediaStreamProvider, sid: string) {
+    constructor(signallingChannel: SignallingChannel, mediaStreamProvider: MediaStreamProvider, sid: string, logging = true) {
+        this.logging = logging;
         this.sid = sid;
         this.signallingChannel = signallingChannel;
         this.mediaStreamProvider = mediaStreamProvider;
@@ -56,7 +56,8 @@ export class WebRtcManager {
 
 
     private async iceListener(remoteSid: string, ice: RTCIceCandidate) {
-        const connection = this.connections.has(remoteSid) ? this.connections.get(remoteSid) : this.createP2pConnection(remoteSid);
+        if (this.logging) console.log("ice", remoteSid);
+        const connection = this.createP2pConnectionIfNecessary(remoteSid);
         if (!connection) return;
         
         try {
@@ -68,8 +69,8 @@ export class WebRtcManager {
     }
 
     private async descriptionListener(remoteSid: string, description: RTCSessionDescriptionInit) {
-
-        const connection = this.connections.has(remoteSid) ? this.connections.get(remoteSid) : this.createP2pConnection(remoteSid);
+        if (this.logging) console.log("description", remoteSid);
+        const connection = this.createP2pConnectionIfNecessary(remoteSid);
         if (!connection) return;
         const pc = connection.pc;
 
@@ -94,12 +95,28 @@ export class WebRtcManager {
     }
 
     addStream(remoteSid: string, stream: MediaStream) {
-        const connection = this.connections.has(remoteSid) ? this.connections.get(remoteSid) : this.createP2pConnection(remoteSid);
+        if (this.logging) console.log("adding stream", remoteSid, stream);
+        const connection = this.createP2pConnectionIfNecessary(remoteSid);
         if (!connection) return;
         stream.getTracks().forEach(track => connection.pc.addTrack(track, stream));
     }
 
-    private createP2pConnection(remoteSid: string): Connection | null {
+    removeTracks(remoteSid: string, trackIds: Set<string>) {
+        if (this.logging) console.log("removing stream", remoteSid, trackIds);
+        if (!this.connections.has(remoteSid)) return;
+        const connection = this.connections.get(remoteSid)!;
+        connection.pc.getSenders().forEach(sender => {
+            if (sender.track && trackIds.has(sender.track.id)) {
+                connection.pc.removeTrack(sender);
+            }
+        });
+    }
+
+    private createP2pConnectionIfNecessary(remoteSid: string): Connection | null {
+        if (this.connections.has(remoteSid)) return this.connections.get(remoteSid)!;
+
+        if (this.logging) console.log("creating p2p connection", remoteSid, this.connections.has(remoteSid));
+
         const pc = new RTCPeerConnection(config);
         const connection: Connection = { pc: pc, makingOffer: false, ignoreOffer: false, isAnswerPending: false };
         this.connections.set(remoteSid, connection);
@@ -111,10 +128,13 @@ export class WebRtcManager {
             };
 
         pc.ontrack = (event: RTCTrackEvent) => {
-            event.streams.forEach(stream => this.mediaStreamProvider.addMediaStream(remoteSid, uuidv4(), stream));
+            if (this.logging) console.log("on track event", remoteSid, event);
+            event.streams.forEach(stream => this.mediaStreamProvider.addMediaStream(remoteSid, stream.id, stream, event.track.id));
         };
 
         pc.onnegotiationneeded = async () => {
+            if (this.logging) console.log("renogotiating", remoteSid);
+
             try {
                 connection.makingOffer = true;
                 await (pc as any).setLocalDescription();
@@ -131,11 +151,15 @@ export class WebRtcManager {
 
 
     connect(remoteSid: string) {
-        this.createP2pConnection(remoteSid);
+        if (this.logging) console.log("connect", remoteSid, "isPolite", this.isPolite(remoteSid));
+
+        this.createP2pConnectionIfNecessary(remoteSid);
     }
 
 
     disconnect(remoteSid: string) {
+        if (this.logging) console.log("disconnect", remoteSid);
+
         const connection = this.connections.get(remoteSid);
         if (!connection) return;
         connection.pc.close();
