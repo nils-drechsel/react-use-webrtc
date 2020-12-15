@@ -6,4 +6,5 @@ export enum RtcMessage {
     RTC_ANSWER = "RTC_ANSWER",
     RTC_ICE = "RTC_ICE",
     RTC_DESCRIPTION = "RTC_DESCRIPTION",
+    RTC_LABEL = "RTC_LABEL"
 }

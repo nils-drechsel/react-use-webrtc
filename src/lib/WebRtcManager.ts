@@ -1,14 +1,6 @@
 import { RtcMessage } from "./RtcMessage";
 
 
-const config = {
-    iceServers: [
-        {
-            urls: ["stun:stun.l.google.com:19302"]
-        }
-    ]
-};
-
 
 
 
@@ -16,6 +8,7 @@ export interface MediaStreamProvider {
     addMediaStream(bundleId: string, streamId: string, stream: MediaStream, trackId: string): void;
     //addMediaData(bundleId: string, dataId: string, data: any): void;
     removeMediaObject(bundleId: string, streamId: string): void;
+    setTrackLabels(bundleId:string, trackIds: Array<string>, label: string): void;
 }
 
 export interface SignallingChannel {
@@ -38,14 +31,17 @@ export class WebRtcManager {
     connections: Map<string, Connection> = new Map();
     mediaStreamProvider: MediaStreamProvider;
     logging: boolean;
+    configuration: RTCConfiguration;
 
-    constructor(signallingChannel: SignallingChannel, mediaStreamProvider: MediaStreamProvider, sid: string, logging = true) {
+    constructor(signallingChannel: SignallingChannel, mediaStreamProvider: MediaStreamProvider, sid: string, configuration: RTCConfiguration, logging = true) {
+        this.configuration = configuration;
         this.logging = logging;
         this.sid = sid;
         this.signallingChannel = signallingChannel;
         this.mediaStreamProvider = mediaStreamProvider;
         this.signallingChannel.addListener(RtcMessage.RTC_ICE, (payload, fromSid) => this.iceListener(fromSid!, payload));
         this.signallingChannel.addListener(RtcMessage.RTC_DESCRIPTION, (payload, fromSid) => this.descriptionListener(fromSid!, payload));
+        this.signallingChannel.addListener(RtcMessage.RTC_LABEL, (payload, fromSid) => this.labelListener(fromSid!, payload));
     }
 
 
@@ -61,7 +57,13 @@ export class WebRtcManager {
         if (!connection) return;
         
         try {
-            await connection.pc.addIceCandidate(new RTCIceCandidate(ice));
+            if (ice) {
+                await connection.pc.addIceCandidate(new RTCIceCandidate(ice));
+            } else {
+                console.log("RECEIVING END OF CANDIDATES. MY BROWSER IS: ", window.navigator.userAgent);
+                await connection.pc.addIceCandidate(null as any);
+            }
+
         } catch (err) {
             if (!connection.ignoreOffer) throw err; // Suppress ignored offer's candidates
         }
@@ -94,11 +96,13 @@ export class WebRtcManager {
         this.sid = sid;
     }
 
-    addStream(remoteSid: string, stream: MediaStream) {
-        if (this.logging) console.log("adding stream", remoteSid, stream);
+    addStream(remoteSid: string, stream: MediaStream, label: string) {
+        if (this.logging) console.log("adding stream", remoteSid, stream, label);
         const connection = this.createP2pConnectionIfNecessary(remoteSid);
         if (!connection) return;
         stream.getTracks().forEach(track => connection.pc.addTrack(track, stream));
+        const trackIds = stream.getTracks().map(track => track.id);
+        this.signallingChannel.send(RtcMessage.RTC_LABEL, { trackIds, label }, remoteSid);
     }
 
     removeTracks(remoteSid: string, trackIds: Set<string>) {
@@ -112,20 +116,29 @@ export class WebRtcManager {
         });
     }
 
+    private labelListener(remoteSid: string, labelMessage: { trackIds: Array<string>, label: string }) {
+        if (this.logging) console.log("received labels", remoteSid, labelMessage);
+        this.mediaStreamProvider.setTrackLabels(remoteSid, labelMessage.trackIds, labelMessage.label);
+    }
+
     private createP2pConnectionIfNecessary(remoteSid: string): Connection | null {
         if (this.connections.has(remoteSid)) return this.connections.get(remoteSid)!;
 
         if (this.logging) console.log("creating p2p connection", remoteSid, this.connections.has(remoteSid));
 
-        const pc = new RTCPeerConnection(config);
+        const pc = new RTCPeerConnection(this.configuration);
         const connection: Connection = { pc: pc, makingOffer: false, ignoreOffer: false, isAnswerPending: false };
         this.connections.set(remoteSid, connection);
 
         pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
             if (event.candidate) {
                 this.signallingChannel.send(RtcMessage.RTC_ICE, event.candidate, remoteSid);
-                }
-            };
+            }
+            else {
+                console.log("SENDING END OF CANDIDATES")
+                this.signallingChannel.send(RtcMessage.RTC_ICE, null, remoteSid);   
+            }
+        };
 
         pc.ontrack = (event: RTCTrackEvent) => {
             if (this.logging) console.log("on track event", remoteSid, event);
@@ -145,6 +158,12 @@ export class WebRtcManager {
                 connection.makingOffer = false;
             }
         }
+
+        pc.oniceconnectionstatechange = (ev: Event) => {
+            console.log("ICE CONNECTION CHANCE", pc.iceConnectionState, ev);
+        }
+
+
         return connection;
     }
 
