@@ -1,8 +1,7 @@
 import { FunctionComponent } from "react";
-import { MediaStreamProvider, SignallingChannel } from "./WebRtcManager";
+import { SignallingChannel } from "./WebRtcManager";
 declare type Props = {
     signallingChannel: SignallingChannel;
-    mediaStreamProvider: MediaStreamProvider;
     sid: string;
     config: RTCConfiguration;
     logging?: boolean;

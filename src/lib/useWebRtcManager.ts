@@ -1,7 +1,7 @@
 import { useContext } from "react";
 import WebRtcContext from "./WebRtcContext";
-import { WebRtcManager } from "./WebRtcManager";
 import adapter from "webrtc-adapter";
+import { WebRtcManager } from "./WebRtcManager";
 
 
 export const useWebRtcManager = (): WebRtcManager => {
