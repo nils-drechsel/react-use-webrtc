@@ -18,6 +18,7 @@ export declare abstract class AbstractLocalStreamController extends AbstractCont
     deregisterOutboundController(controllerId: string): void;
     getResourceId(): string;
     fail(): void;
+    restart(): void;
     stop(): void;
 }
 export declare class LocalCameraStreamController extends AbstractLocalStreamController {

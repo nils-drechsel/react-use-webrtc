@@ -12,6 +12,7 @@ export declare class OutboundStreamController extends AbstractRemoteController<M
     constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, localController: LocalStreamController);
     load(mediaObject: MediaStreamObject): void;
     fail(): void;
+    restart(): void;
     unload(): void;
     start(): Promise<void>;
     stop(): void;

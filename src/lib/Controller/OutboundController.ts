@@ -36,7 +36,12 @@ export class OutboundStreamController extends AbstractRemoteController<MediaStre
     }
 
     fail() {
-        this.setState(ControllerState.FAILED);
+        super.fail();
+        this.webRtcManager.controllerManager.sendModifyInboundController(this.remoteSid, { controllerId: this.controllerId, transmissionId: null, state: this.getState() });
+    }
+
+    restart() {
+        super.restart();
         this.webRtcManager.controllerManager.sendModifyInboundController(this.remoteSid, { controllerId: this.controllerId, transmissionId: null, state: this.getState() });
     }
 

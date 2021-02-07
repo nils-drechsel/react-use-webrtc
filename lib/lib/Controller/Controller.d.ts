@@ -28,6 +28,7 @@ export interface ModifyInboundControllerPayload {
 }
 export interface Controller<T extends MediaObject> {
     fail(): void;
+    restart(): void;
     stop(): void;
     setState(state: ControllerState): void;
     getState(): ControllerState;
@@ -49,6 +50,7 @@ export declare abstract class AbstractController<T extends MediaObject> implemen
     constructor(webRtcManager: WebRtcManager, label: string, controllerId?: string | null);
     abstract stop(): void;
     fail(): void;
+    restart(): void;
     setState(state: ControllerState): void;
     getState(): ControllerState;
     protected notifyModification(): void;

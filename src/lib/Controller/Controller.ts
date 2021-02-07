@@ -38,6 +38,7 @@ export interface ModifyInboundControllerPayload {
 
 export interface Controller<T extends MediaObject> {
     fail(): void;
+    restart(): void;
     stop(): void;
     setState(state: ControllerState): void;
     getState(): ControllerState;
@@ -72,6 +73,11 @@ export abstract class AbstractController<T extends MediaObject> implements Contr
 
     fail(): void {
         this.setState(ControllerState.FAILED);
+        this.notifyModification();
+    }
+
+    restart(): void {
+        this.setState(ControllerState.STARTING);
         this.notifyModification();
     }
 
