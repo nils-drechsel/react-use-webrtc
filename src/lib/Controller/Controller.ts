@@ -89,9 +89,7 @@ export abstract class AbstractController<T extends MediaObject> implements Contr
         return this.controllerState;
     }
 
-    protected notifyModification() {
-        this.webRtcManager.controllerManager.getInboundControllers().modify(this.controllerId);
-    }
+    protected abstract notifyModification(): void;
 
     getMediaObject(): T {
         return this.mediaObject!;

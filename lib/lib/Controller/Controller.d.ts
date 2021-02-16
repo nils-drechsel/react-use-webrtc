@@ -53,7 +53,7 @@ export declare abstract class AbstractController<T extends MediaObject> implemen
     restart(): void;
     setState(state: ControllerState): void;
     getState(): ControllerState;
-    protected notifyModification(): void;
+    protected abstract notifyModification(): void;
     getMediaObject(): T;
     getLabel(): string;
     getControllerId(): string;

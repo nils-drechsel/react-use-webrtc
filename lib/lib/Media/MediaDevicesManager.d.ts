@@ -1,7 +1,7 @@
 import { MutableRefObject } from "react";
-import { DataListeners, ListenerEvent, IdListeners } from "react-use-listeners";
+import { DataListeners, ObservedMapMap } from "react-use-listeners";
 import { UnsubscribeCallback } from "react-use-listeners";
-import { DataListenerCallback } from "react-use-listeners/lib/lib/Listeners";
+import { DataListenerCallback, ObservedMap } from "react-use-listeners";
 export declare enum MediaIdent {
     LOCAL = "LOCAL"
 }
@@ -10,6 +10,7 @@ export declare enum LocalMediaInput {
     SCREEN = "SCREEN"
 }
 export declare type MediaDevice = {
+    id: string;
     label: string;
     info: MediaDeviceInfo;
 };
@@ -36,10 +37,6 @@ export interface MediaStreamObject extends MediaObject {
     hasAudio: boolean;
     videoOutput: string | null;
 }
-export interface MediaBundle {
-    bundleId: string;
-    objs: Map<string, MediaObject>;
-}
 export declare enum MediaPermissions {
     SUCCESS = "SUCCESS",
     DISALLOWED = "DISALLOWED",
@@ -56,14 +53,12 @@ export interface Devices {
     audioOutput: Map<string, MediaDevice>;
 }
 export declare class MediaDevicesManager {
-    devices: Devices | null;
     videoOutputs: Map<string, MutableRefObject<HTMLVideoElement>>;
-    bundles: Map<string, MediaBundle>;
-    videoStreamConnections: Map<string, string>;
+    bundles: ObservedMapMap<string, MediaObject>;
     audioConnections: Map<string, string>;
-    deviceListeners: DataListeners<Devices>;
-    anyBundleListeners: IdListeners;
-    bundleListeners: IdListeners;
+    videoDevices: ObservedMap<MediaDevice>;
+    audioInputDevices: ObservedMap<MediaDevice>;
+    audioOutputDevices: ObservedMap<MediaDevice>;
     permissionListeners: DataListeners<MediaPermissions>;
     logging: boolean;
     permissions: MediaPermissions | null;
@@ -79,7 +74,6 @@ export declare class MediaDevicesManager {
     private getStreamDimensions;
     private addMediaStreamObject;
     private addStreamListeners;
-    addInvalidMediaObject(): void;
     removeMediaObject(bundleId: string, objId: string): void;
     stopStream(bundleId: string, objId: string): void;
     destroyBundle(bundleId: string): void;
@@ -87,22 +81,15 @@ export declare class MediaDevicesManager {
     connectAudioOutputToVideoOutput(audioId: string, outputId: string): void;
     private requestMediaPermissions;
     private assertMediaPermissions;
-    createCameraId(cameraDeviceId: string | null, audioDeviceId: string | null): string;
-    getCameraStream(objId: string, cameraDeviceId: string | null, audioDeviceId: string | null): Promise<MediaStreamObject>;
-    getScreenStream(): Promise<MediaStreamObject>;
+    getCameraStream(objId: string, cameraDeviceId?: string | null, audioDeviceId?: string | null): Promise<MediaStreamObject>;
+    getScreenStream(objId: string): Promise<MediaStreamObject>;
     private getVideoFeed;
     private getScreenFeed;
     private getStream;
     hasMediaObject(bundleId: string, objId: string): boolean;
     getMediaObject(bundleId: string, objId: string): MediaObject | null;
-    getMediaBundle(bundleId: string): MediaBundle | null;
     private createDeviceLabel;
-    listenForDevices(listener: (devices: Devices) => void): UnsubscribeCallback;
-    notifyDeviceListeners(): void;
-    listenForAnyBundle(listener: (bundleId: string, event: ListenerEvent) => void): UnsubscribeCallback;
-    listenForBundle(bundleId: string, listener: (objId: string, event: ListenerEvent) => void): () => void;
-    listenForObject(bundleId: string, objectId: string, listener: (event: ListenerEvent) => void): UnsubscribeCallback;
-    refreshDevices(): Promise<Devices>;
+    refreshDevices(): Promise<void>;
     destroy(): void;
     getMediaConstraints(): MediaTrackSupportedConstraints;
     removeMediaStreams(bundleId: string): void;

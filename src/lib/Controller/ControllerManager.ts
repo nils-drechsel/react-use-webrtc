@@ -15,7 +15,7 @@ export class ControllerManager {
 
     webRtcManager: WebRtcManager;
 
-    outboundControllers: Map<string, OutboundController<MediaObject>> = new Map();
+    outboundControllers: ObservedMap<OutboundController<MediaObject>> = new ObservedMap();
     localControllers: ObservedMap<LocalController<MediaObject>> = new ObservedMap();
     inboundControllers: ObservedMap<InboundController<MediaObject>> = new ObservedMap();
 
@@ -44,6 +44,7 @@ export class ControllerManager {
     }
 
     inboundControllerAdded(fromSid: string, payload: AddInboundControllerPayload) {
+        if (this.logging) console.log("inbound controller was added. sid:", fromSid);
         if (this.inboundControllers.has(payload.controllerId)) return;
         const controller = new TransmissionInboundController(this.webRtcManager, fromSid, payload.label, payload.controllerId);
         this.inboundControllers.set(controller.controllerId, controller);
@@ -52,6 +53,7 @@ export class ControllerManager {
     }
 
     inboundControllerRemoved(fromSid: string, payload: RemoveInboundControllerPayload) {
+        if (this.logging) console.log("inbound controller was removed. sid: ", fromSid);
         if (!this.inboundControllers.has(payload.controllerId)) return;
         const controller = this.inboundControllers.get(payload.controllerId)!;
         if (controller.getRemoteSid() !== fromSid) return; // would be weird if we'd ever see this
@@ -59,25 +61,29 @@ export class ControllerManager {
     }
 
     inboundControllerModified(fromSid: string, payload: ModifyInboundControllerPayload) {
+        if (this.logging) console.log("inbound controller was modified. sid: ", fromSid);
         if (!this.inboundControllers.has(payload.controllerId)) return;
         const controller = this.inboundControllers.get(payload.controllerId)!;
         if (controller.getRemoteSid() !== fromSid) return; // would be weird if we'd ever see this
         controller.load(payload.transmissionId);
     }
 
-    addLocalCameraStreamController(objId:string, label: string): LocalStreamController {
+    addLocalCameraStreamController(objId:string, label: string): LocalCameraStreamController {
+        if (this.logging) console.log("local camera stream controller was added. objId: ", objId);
         const controller = new LocalCameraStreamController(this.webRtcManager, objId, label);
         this.localControllers.set(controller.controllerId, controller);
         return controller;
     }
 
     addOutboundStreamController(remoteSid: string, label: string, localController: LocalStreamController): OutboundStreamController {
+        if (this.logging) console.log("outbound controller was added. sid: ", remoteSid);
         const controller = new OutboundStreamController(this.webRtcManager, remoteSid, label, localController);
         this.outboundControllers.set(controller.controllerId, controller);
         return controller;
     }
 
     removeOutboundController(controllerId: string) {
+        if (this.logging) console.log("outbound controller was removed. controllerId: ", controllerId);
         if (!this.outboundControllers.has(controllerId)) return;
         const controller = this.outboundControllers.get(controllerId)!;
         controller.stop();
@@ -85,6 +91,7 @@ export class ControllerManager {
     }
 
     removeLocalController(controllerId: string) {
+        if (this.logging) console.log("local controller was removed. controllerId: ", controllerId);
         if (!this.localControllers.has(controllerId)) return;
         const controller = this.localControllers.get(controllerId)!;
         controller.stop();

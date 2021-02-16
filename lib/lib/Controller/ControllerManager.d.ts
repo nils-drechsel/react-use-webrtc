@@ -2,12 +2,12 @@ import { ObservedMap } from "react-use-listeners";
 import { WebRtcManager } from "../WebRtcManager";
 import { InboundController } from "./InboundController";
 import { AddInboundControllerPayload, RemoveInboundControllerPayload, ModifyInboundControllerPayload } from "./Controller";
-import { LocalController, LocalStreamController } from "./LocalController";
+import { LocalCameraStreamController, LocalController, LocalStreamController } from "./LocalController";
 import { OutboundController, OutboundStreamController } from "./OutboundController";
 import { MediaObject } from "../Media/MediaDevicesManager";
 export declare class ControllerManager {
     webRtcManager: WebRtcManager;
-    outboundControllers: Map<string, OutboundController<MediaObject>>;
+    outboundControllers: ObservedMap<OutboundController<MediaObject>>;
     localControllers: ObservedMap<LocalController<MediaObject>>;
     inboundControllers: ObservedMap<InboundController<MediaObject>>;
     logging: boolean;
@@ -18,7 +18,7 @@ export declare class ControllerManager {
     inboundControllerAdded(fromSid: string, payload: AddInboundControllerPayload): void;
     inboundControllerRemoved(fromSid: string, payload: RemoveInboundControllerPayload): void;
     inboundControllerModified(fromSid: string, payload: ModifyInboundControllerPayload): void;
-    addLocalCameraStreamController(objId: string, label: string): LocalStreamController;
+    addLocalCameraStreamController(objId: string, label: string): LocalCameraStreamController;
     addOutboundStreamController(remoteSid: string, label: string, localController: LocalStreamController): OutboundStreamController;
     removeOutboundController(controllerId: string): void;
     removeLocalController(controllerId: string): void;

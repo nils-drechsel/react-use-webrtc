@@ -20,6 +20,10 @@ export abstract class AbstractInboundController<T extends MediaObject> extends A
 
     abstract load(transmissionId: string | null): void;
 
+    protected notifyModification() {
+        this.webRtcManager.controllerManager.inboundControllers.modify(this.getControllerId());
+    }
+
 }
 
 

@@ -27,3 +27,4 @@ export { MediaIdent } from "./lib/Media/MediaDevicesManager";
 export { LocalMediaInput } from "./lib/Media/MediaDevicesManager";
 export { StreamSubType } from "./lib/Media/MediaDevicesManager";
 export { MediaPermissions } from "./lib/Media/MediaDevicesManager";
+export { MediaDevice} from "./lib/Media/MediaDevicesManager";
