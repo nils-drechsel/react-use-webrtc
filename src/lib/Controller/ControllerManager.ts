@@ -1,8 +1,8 @@
-import { ObservedMap } from "react-use-listeners";
+import { ObservedMap, ObservedMapImpl, ObservedPlainMapMap, ObservedPlainMapMapImpl } from "react-use-listeners";
 import { WebRtcManager } from "../WebRtcManager";
 import { InboundController, TransmissionInboundController } from "./InboundController";
 import { AddInboundControllerPayload, RtcControllerMessage, RemoveInboundControllerPayload, ModifyInboundControllerPayload } from "./Controller";
-import { LocalCameraStreamController, LocalController, LocalStreamController } from "./LocalController";
+import { LocalController, LocalStreamController } from "./LocalController";
 import { OutboundController, OutboundStreamController } from "./OutboundController";
 import { MediaObject } from "../Media/MediaDevicesManager";
 
@@ -15,9 +15,9 @@ export class ControllerManager {
 
     webRtcManager: WebRtcManager;
 
-    outboundControllers: ObservedMap<OutboundController<MediaObject>> = new ObservedMap();
-    localControllers: ObservedMap<LocalController<MediaObject>> = new ObservedMap();
-    inboundControllers: ObservedMap<InboundController<MediaObject>> = new ObservedMap();
+    outboundControllers: ObservedPlainMapMap<OutboundController> = new ObservedPlainMapMapImpl();
+    localControllers: ObservedMap<LocalController> = new ObservedMapImpl();
+    inboundControllers: ObservedMap<InboundController> = new ObservedMapImpl();
 
     logging: boolean;
 
@@ -29,10 +29,6 @@ export class ControllerManager {
         this.webRtcManager.signallingChannel.addListener(RtcControllerMessage.RTC_REMOVE_INBOUND_CONTROLLER, (payload, fromSid) => this.inboundControllerRemoved(fromSid!, payload));
         this.webRtcManager.signallingChannel.addListener(RtcControllerMessage.RTC_MODIFY_INBOUND_CONTROLLER, (payload, fromSid) => this.inboundControllerModified(fromSid!, payload));
 
-    }
-
-    getOutboundController(controllerId: string): OutboundController<MediaObject> | undefined {
-        return this.outboundControllers.get(controllerId);
     }
 
     getInboundController(controllerId: string): InboundController<MediaObject> | undefined {
@@ -68,26 +64,30 @@ export class ControllerManager {
         controller.load(payload.transmissionId);
     }
 
-    addLocalCameraStreamController(objId:string, label: string): LocalCameraStreamController {
-        if (this.logging) console.log("local camera stream controller was added. objId: ", objId);
-        const controller = new LocalCameraStreamController(this.webRtcManager, objId, label);
-        this.localControllers.set(controller.controllerId, controller);
-        return controller;
+    addLocalController(localController: LocalController) {
+        if (this.logging) console.log("local camera stream controller was added. resourceId: ", localController.getControllerId());
+        this.localControllers.set(localController.getControllerId(), localController);
     }
 
-    addOutboundStreamController(remoteSid: string, label: string, localController: LocalStreamController): OutboundStreamController {
+    createOrGetOutboundStreamController(remoteSid: string, label: string, localController: LocalStreamController): OutboundStreamController {
+        const outboundController = this.outboundControllers.getSub(remoteSid, localController.getControllerId());
+        if (outboundController) {
+            if (!(outboundController instanceof OutboundStreamController)) throw new Error("outbound controller is not an outbound stream controller");
+            return outboundController as OutboundStreamController;
+        }
+
         if (this.logging) console.log("outbound controller was added. sid: ", remoteSid);
         const controller = new OutboundStreamController(this.webRtcManager, remoteSid, label, localController);
-        this.outboundControllers.set(controller.controllerId, controller);
+        this.outboundControllers.set(localController.getControllerId(), controller);
         return controller;
     }
 
-    removeOutboundController(controllerId: string) {
-        if (this.logging) console.log("outbound controller was removed. controllerId: ", controllerId);
-        if (!this.outboundControllers.has(controllerId)) return;
-        const controller = this.outboundControllers.get(controllerId)!;
+    removeOutboundController(remoteSid: string, resourceId: string) {
+        if (this.logging) console.log("outbound controller was removed. remoteSid:", remoteSid, "resourceId: ", resourceId);
+        if (!this.outboundControllers.hasSub(remoteSid, resourceId)) return;
+        const controller = this.outboundControllers.getSub(remoteSid, resourceId)!;
         controller.stop();
-        this.outboundControllers.delete(controllerId);
+        this.outboundControllers.deleteSub(remoteSid, resourceId);
     }
 
     removeLocalController(controllerId: string) {
@@ -109,6 +109,10 @@ export class ControllerManager {
     sendRemoveInboundController(remoteSid: string, payload: RemoveInboundControllerPayload) {
         this.webRtcManager.signallingChannel.send(RtcControllerMessage.RTC_REMOVE_INBOUND_CONTROLLER, payload, remoteSid);
     }
+
+    getOutboundControllers(): ObservedPlainMapMap<OutboundController<MediaObject>> {
+        return this.outboundControllers;
+    }    
 
     getLocalControllers(): ObservedMap<LocalController<MediaObject>> {
         return this.localControllers;

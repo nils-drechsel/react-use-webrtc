@@ -1,12 +1,7 @@
 import { MutableRefObject } from "react";
-import { DataListeners, ObservedMapMap } from "react-use-listeners";
+import { DataListeners, ObservedMapImpl } from "react-use-listeners";
 import { UnsubscribeCallback } from "react-use-listeners";
 import { DataListenerCallback, ObservedMap } from "react-use-listeners";
-
-
-export enum MediaIdent {
-    LOCAL = 'LOCAL',
-}
 
 export enum LocalMediaInput {
     CAMERA = 'CAMERA',
@@ -32,7 +27,6 @@ export enum StreamSubType {
 
 export interface MediaObject {
     type: MediaType;
-    bundleId: string;
     objId: string;
 }
 
@@ -44,6 +38,10 @@ export interface MediaStreamObject extends MediaObject {
     hasVideo: boolean;
     hasAudio: boolean;
     videoOutput: string | null;
+}
+
+export interface RemoteMediaStreamObject extends MediaStreamObject {
+    remoteSid: string;
 }
 
 export enum MediaPermissions {
@@ -61,10 +59,6 @@ export class MediaPermissionsException extends Error {
     }
 }
 
-export const makeMediaId = (bundleId: string, streamId: string): string => {
-        return bundleId + '/' + streamId;
-}
-
 
 export interface Devices {
     video: Map<string, MediaDevice>;
@@ -76,13 +70,13 @@ export class MediaDevicesManager {
 
     videoOutputs: Map<string, MutableRefObject<HTMLVideoElement>> = new Map();
 
-    bundles: ObservedMapMap<string, MediaObject> = new ObservedMapMap();
+    mediaObjects: ObservedMap<MediaObject> = new ObservedMapImpl();
 
     audioConnections: Map<string, string> = new Map();
 
-    videoDevices: ObservedMap<MediaDevice> = new ObservedMap();
-    audioInputDevices: ObservedMap<MediaDevice> = new ObservedMap();
-    audioOutputDevices: ObservedMap<MediaDevice> = new ObservedMap();
+    videoDevices: ObservedMap<MediaDevice> = new ObservedMapImpl();
+    audioInputDevices: ObservedMap<MediaDevice> = new ObservedMapImpl();
+    audioOutputDevices: ObservedMap<MediaDevice> = new ObservedMapImpl();
 
     permissionListeners: DataListeners<MediaPermissions> = new DataListeners();
 
@@ -93,7 +87,6 @@ export class MediaDevicesManager {
     constructor(logging = true) {
         this.logging = logging;
         navigator.mediaDevices.ondevicechange = (_event: Event) => this.refreshDevices();
-        this.initBundleIfNecessary(MediaIdent.LOCAL);
     }
 
 
@@ -105,11 +98,11 @@ export class MediaDevicesManager {
         return result;
     }
 
-    registerVideoOutput(id: string, ref: MutableRefObject<HTMLVideoElement>, bundleId?: string, objId?: string) {
-        if (this.logging) console.log('register video output', id, bundleId, objId);
+    registerVideoOutput(id: string, ref: MutableRefObject<HTMLVideoElement>, objId?: string) {
+        if (this.logging) console.log('register video output', id, objId);
         this.videoOutputs.set(id, ref);
-        if (bundleId && objId) {
-            this.connectStreamToOutput(bundleId, objId, id);
+        if (objId) {
+            this.connectStreamToOutput(objId, id);
         }
     }
 
@@ -119,41 +112,33 @@ export class MediaDevicesManager {
         this.videoOutputs.delete(id);
     }
 
-    private initBundleIfNecessary(bundleId: string) {
-        if (!this.bundles.has(bundleId)) {
-            this.bundles.set(bundleId, bundleId);
-        }
+
+    addRemoteMediaStream(objId: string, remoteSid: string, stream: MediaStream): MediaStreamObject {
+        if (this.logging) console.log('adding media stream', objId, stream, remoteSid);
+
+        return this.addMediaStreamObject(objId, { objId, type: MediaType.STREAM, subType: StreamSubType.REMOTE, stream, remoteSid } as RemoteMediaStreamObject, stream);
     }
 
+    addLocalCameraStream(objId: string, stream: MediaStream): MediaStreamObject {
+        if (this.logging) console.log('adding local camera stream', objId, stream);
 
-
-    addMediaStream(bundleId: string, objId: string, stream: MediaStream): MediaStreamObject {
-        if (this.logging) console.log('adding media stream', bundleId, objId, stream);
-
-        return this.addMediaStreamObject(bundleId, objId, MediaType.STREAM, StreamSubType.REMOTE, stream, null);
+        return this.addMediaStreamObject(objId, { objId, type: MediaType.STREAM, subType: StreamSubType.LOCAL_CAMERA, stream } as MediaStreamObject, stream);
     }
 
-    addLocalCameraStream(bundleId: string, objId: string, stream: MediaStream): MediaStreamObject {
-        if (this.logging) console.log('adding local camera stream', bundleId, objId, stream);
+    addLocalScreenStream(objId: string, stream: MediaStream): MediaStreamObject {
+        if (this.logging) console.log('adding local screen stream', objId, stream);
 
-        return this.addMediaStreamObject(bundleId, objId, MediaType.STREAM, StreamSubType.LOCAL_CAMERA, stream, null);
+        return this.addMediaStreamObject(objId, { objId, type: MediaType.STREAM, subType: StreamSubType.LOCAL_SCREEN, stream } as MediaStreamObject, stream);
     }
 
-    addLocalScreenStream(bundleId: string, objId: string, stream: MediaStream): MediaStreamObject {
-        if (this.logging) console.log('adding local screen stream', bundleId, objId, stream);
-
-        return this.addMediaStreamObject(bundleId, objId, MediaType.STREAM, StreamSubType.LOCAL_SCREEN, stream, null);
-    }
-
-    updateStreamDimensions(bundleId: string, objId: string, width: number, height: number) {
-        if (!this.bundles.hasSub(bundleId, objId)) return;
-        const obj = this.bundles.getSub(bundleId, objId)!;
-        if (!(obj.type === MediaType.STREAM)) return;
-        const mediaStreamObject = obj as MediaStreamObject;
+    updateStreamDimensions(objId: string, width: number, height: number) {
+        const mediaObj = this.mediaObjects.get(objId);
+        if (!mediaObj || mediaObj.type !== MediaType.STREAM) return;
+        const mediaStreamObject = mediaObj as MediaStreamObject;
         mediaStreamObject.width = width;
         mediaStreamObject.height = height;
 
-        this.bundles.modifySub(bundleId, objId);
+        this.mediaObjects.modify(objId);
     }
 
     private getStreamDimensions(stream: MediaStream): [number | null, number | null] {
@@ -165,70 +150,72 @@ export class MediaDevicesManager {
         return [width, height];
     }
 
-    private addMediaStreamObject(bundleId: string, objId: string, type: MediaType, subType: StreamSubType, stream: MediaStream, videoOutput: string | null): MediaStreamObject {
-        this.initBundleIfNecessary(bundleId);
+    private addMediaStreamObject(objId: string, mediaStreamObject: MediaStreamObject, stream: MediaStream): MediaStreamObject {
 
-        if (this.bundles.hasSub(bundleId, objId)) {
+
+        if (this.mediaObjects.has(objId)) {
 
             const [width, height] = this.getStreamDimensions(stream);
 
-            const streamObject = (this.bundles.getSub(bundleId, objId) as MediaStreamObject);
+            const streamObject = (this.mediaObjects.get(objId) as MediaStreamObject);
+
+            if (streamObject.stream) {
+                this.stopMediaStream(streamObject.stream);
+            }
+
             streamObject.stream = stream;
-            this.addStreamListeners(bundleId, objId, streamObject, stream);
+            this.addStreamListeners(objId, streamObject, stream);
             if (width) streamObject.width = width;
             if (height) streamObject.height = height;
 
-            this.bundles.modify(bundleId, objId);
+            this.mediaObjects.modify(objId);
 
             return streamObject;
         }
 
         const [width, height] = this.getStreamDimensions(stream);
 
-        const hasVideo: boolean = Array.from(stream.getVideoTracks()).length > 0;
-        const hasAudio: boolean = Array.from(stream.getAudioTracks()).length > 0;
+        mediaStreamObject.width = width;
+        mediaStreamObject.height = height;
 
-        const mediaObject: MediaStreamObject = {
-            bundleId, objId, type, subType, stream, videoOutput, width, height, hasVideo, hasAudio
-        }
+        mediaStreamObject.hasVideo = Array.from(stream.getVideoTracks()).length > 0;
+        mediaStreamObject.hasAudio = Array.from(stream.getAudioTracks()).length > 0;
 
-        this.addStreamListeners(bundleId, objId, mediaObject, stream);        
 
-        this.bundles.setSub(bundleId, objId, mediaObject);
+        this.addStreamListeners(objId, mediaStreamObject, stream);        
 
-        return mediaObject;
+        this.mediaObjects.set(objId, mediaStreamObject);
+
+        return mediaStreamObject;
     }
 
-    private addStreamListeners(bundleId: string, objId: string, mediaObject: MediaStreamObject, stream: MediaStream) {
+    private addStreamListeners(objId: string, mediaObject: MediaStreamObject, stream: MediaStream) {
         // remove stream when one of the tracks has ended
         stream.getTracks().forEach(track => {
             track.onended = () => {
-                if (this.logging) console.log("track has ended", bundleId, objId)
-                this.removeMediaObject(bundleId, objId);
+                if (this.logging) console.log("track has ended", objId)
+                this.mediaObjects.delete(objId);
             }
         });
 
         stream.onaddtrack = ((_e: MediaStreamTrackEvent) => {
 
-
-            if (this.logging) console.log('track was added', bundleId, objId, stream);
+            if (this.logging) console.log('track was added', objId, stream);
             const [newWidth, newHeight] = this.getStreamDimensions(stream);
             if (newWidth && newHeight) {
                 mediaObject.width = newWidth;
                 mediaObject.height = newHeight;
             }
 
-            if (this.bundles.hasSub(bundleId, objId)) {
-                this.bundles.modify(bundleId, objId);
-            }
+            this.mediaObjects.modify(objId);
 
             
         });
         
         stream.onremovetrack = ((_e: MediaStreamTrackEvent) => {
-            if (this.logging) console.log('track was removed', bundleId, objId, stream);
+            if (this.logging) console.log('track was removed', objId, stream);
 
-            if (stream.getTracks().length == 0) this.removeMediaObject(bundleId, objId);
+            if (stream.getTracks().length == 0) this.mediaObjects.delete(objId);
 
             const [newWidth, newHeight] = this.getStreamDimensions(stream);
             if (newWidth && newHeight) {
@@ -236,53 +223,42 @@ export class MediaDevicesManager {
                 mediaObject.height = newHeight;
             }
 
-            if (this.bundles.hasSub(bundleId, objId)) {
-                this.bundles.modify(bundleId, objId);
-            }
+            this.mediaObjects.modify(objId);
 
             
         });
     }
 
-
-
-    removeMediaObject(bundleId: string, objId: string) {
-        if (this.logging) console.log('remove media object', bundleId, objId);
-        if (!this.bundles.hasSub(bundleId, objId)) return;
-
-        this.stopStream(bundleId, objId);
-
-        this.bundles.deleteSub(bundleId, objId);
-    }
-
-    stopStream(bundleId: string, objId: string) {
-        if (this.logging) console.log('stopping stream', bundleId, objId);
-        if (!this.bundles.hasSub(bundleId, objId)) return;
-        const obj = this.bundles.getSub(bundleId, objId)!;
+    stopStream(objId: string) {
+        if (!this.mediaObjects.has(objId)) return;
+        const obj = this.mediaObjects.get(objId)!;
 
         // stop stream in case it's of type STREAM
         if (obj.type !== MediaType.STREAM) return;
         const mediaObject: MediaStreamObject = obj as MediaStreamObject;
-        mediaObject.stream?.getTracks().forEach(track => track.stop());
+        if (this.logging) console.log('stopping stream', objId);
+        if (mediaObject.stream) this.stopMediaStream(mediaObject.stream);
     }
 
-    destroyBundle(bundleId: string) {
-        if (this.logging) console.log('destroying bundle', bundleId);
-        this.bundles.forEachSub(bundleId, (_obj, objId) => {
-            this.removeMediaObject(bundleId, objId);
-        });
-        this.bundles.delete(bundleId);
-    }    
+    private stopMediaStream(stream: MediaStream): void {
+        stream?.getTracks().forEach(track => track.stop());
+    }
 
-    async connectStreamToOutput(bundleId: string, objId: string, outputId: string) {
-        if (this.logging) console.log('connecting stream to output', bundleId, objId, outputId);
+    removeMediaObject(objId: string) {
+        this.stopStream(objId);
+        this.mediaObjects.delete(objId);
+    }
 
-        if (!this.bundles.hasSub(bundleId, objId)) throw new Error("bundle with id: " + bundleId + " is not available");
+
+    connectStreamToOutput(objId: string, outputId: string) {
+        if (this.logging) console.log('connecting stream to output', objId, outputId);
+
+        if (!this.mediaObjects.has(objId)) throw new Error("stream with id: " + objId + " is not available");
 
         if (!this.videoOutputs.has(outputId)) throw new Error("output with id: " + outputId + " is not available");
 
 
-        const mediaObject = this.bundles.getSub(bundleId, objId)!;
+        const mediaObject = this.mediaObjects.get(objId)!;
 
         if (mediaObject.type !== MediaType.STREAM) return;
 
@@ -290,7 +266,7 @@ export class MediaDevicesManager {
 
         mediaStreamObject.videoOutput = outputId;
 
-        if (mediaObject.type !== MediaType.STREAM) throw new Error("media object " + bundleId + " " + objId + " is not a stream");
+        if (mediaObject.type !== MediaType.STREAM) throw new Error("media object " + objId + " is not a stream");
         const stream = (mediaObject as MediaStreamObject).stream;        
 
         const output: MutableRefObject<HTMLVideoElement> = this.videoOutputs.get(outputId)!;
@@ -354,27 +330,20 @@ export class MediaDevicesManager {
         if (this.logging) console.log('local camera stream', cameraDeviceId, audioDeviceId);
 
         await this.assertMediaPermissions();
-
-        this.removeMediaObject(MediaIdent.LOCAL, objId);
-
-        if (this.hasMediaObject(MediaIdent.LOCAL, objId)) {
-            return this.getMediaObject(MediaIdent.LOCAL, objId) as MediaStreamObject;
-        }
         
         const constraints = {video: true, audio: true};
         if (cameraDeviceId) Object.assign(constraints, { video: { deviceId: { exact: cameraDeviceId } } });
         if (audioDeviceId) Object.assign(constraints, { audio: { deviceId: { exact: audioDeviceId } } });
-
         
-        return await this.getStream(MediaIdent.LOCAL, objId, false, constraints);
+        return await this.getStream(objId, false, constraints);
     }
 
     async getScreenStream(objId: string): Promise<MediaStreamObject> {
         await this.assertMediaPermissions();
 
-        this.removeMediaObject(MediaIdent.LOCAL, objId);
+        this.removeMediaObject(objId);
 
-        return await this.getStream(MediaIdent.LOCAL, objId, true, undefined);
+        return await this.getStream(objId, true, undefined);
     }    
 
     private async getVideoFeed(constraints?: MediaStreamConstraints): Promise<MediaStream> {
@@ -386,10 +355,8 @@ export class MediaDevicesManager {
     }
 
 
-    private async getStream(bundleId: string, objId: string, screenshare: boolean, constraints?: MediaStreamConstraints | undefined): Promise<MediaStreamObject> {
-        if (this.logging) console.log('loading stream', bundleId, objId);
-
-        this.initBundleIfNecessary(bundleId);
+    private async getStream(objId: string, screenshare: boolean, constraints?: MediaStreamConstraints | undefined): Promise<MediaStreamObject> {
+        if (this.logging) console.log('loading stream', objId);
 
         try {
 
@@ -397,10 +364,10 @@ export class MediaDevicesManager {
 
             if (screenshare) {
                 stream = await this.getScreenFeed();
-                return this.addLocalScreenStream(bundleId, objId, stream);
+                return this.addLocalScreenStream(objId, stream);
             } else {
                 stream = await this.getVideoFeed(constraints);
-                return this.addLocalCameraStream(bundleId, objId, stream);
+                return this.addLocalCameraStream(objId, stream);
             }
 
         } catch (e) {
@@ -409,12 +376,12 @@ export class MediaDevicesManager {
         }
     }
 
-    hasMediaObject(bundleId: string, objId: string) {
-        return this.bundles.hasSub(bundleId, objId);
+    hasMediaObject(objId: string) {
+        return this.mediaObjects.has(objId);
     }
 
-    getMediaObject(bundleId: string, objId: string): MediaObject | null {
-        return this.bundles.getSub(bundleId, objId)!;
+    getMediaObject(objId: string): MediaObject | null {
+        return this.mediaObjects.get(objId)!;
     }
 
     private createDeviceLabel(map: Map<string, MediaDevice>, info: MediaDeviceInfo): string {
@@ -445,17 +412,13 @@ export class MediaDevicesManager {
     }
 
     destroy() {
-        Array.from(this.bundles.keys()).forEach((bundleId: string) => {
-            this.destroyBundle(bundleId);
+        Array.from(this.mediaObjects.keys()).forEach((objId: string) => {
+            this.removeMediaObject(objId);
         });
     }
 
     getMediaConstraints() : MediaTrackSupportedConstraints {
         return navigator.mediaDevices.getSupportedConstraints();
-    }
-
-    removeMediaStreams(bundleId: string): void {
-        this.destroyBundle(bundleId);
     }
 
     getVideoOutputs(): Map<string, MutableRefObject<HTMLVideoElement>> {

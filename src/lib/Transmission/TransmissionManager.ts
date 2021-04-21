@@ -302,7 +302,7 @@ export class TransmissionManager {
                 }
 
                 const stream = streams.get(transmissionId)!
-                this.mediaDevicesManager.addMediaStream(remoteSid, transmissionId, stream);
+                this.mediaDevicesManager.addRemoteMediaStream(transmissionId, remoteSid, stream);
 
                 if (connection.inboundtransmissions.has(transmissionId)) {
                     const transmission = connection.inboundtransmissions.get(transmissionId)! as StreamTransmission;

@@ -7,6 +7,7 @@ export enum ControllerState {
     STARTING = "STARTING",
     READY = "READY",
     FAILED = "FAILED",
+    STOPPED = "STOPPED",
     CLOSED = "CLOSED"
 }
 
@@ -37,9 +38,11 @@ export interface ModifyInboundControllerPayload {
 
 
 export interface Controller<T extends MediaObject> {
+    start(): void;
     fail(): void;
     restart(): void;
     stop(): void;
+    close(): void;
     setState(state: ControllerState): void;
     getState(): ControllerState;
     getMediaObject(): T;
@@ -59,7 +62,7 @@ export abstract class AbstractController<T extends MediaObject> implements Contr
 
     webRtcManager: WebRtcManager;
     controllerId: string;
-    controllerState: ControllerState = ControllerState.STARTING;
+    controllerState: ControllerState = ControllerState.STOPPED;
     label: string;
     mediaObject: T | null = null;
 
@@ -69,17 +72,30 @@ export abstract class AbstractController<T extends MediaObject> implements Contr
         this.controllerId = controllerId || uuidv4();
     }
 
-    abstract stop(): void;
+    start(): void {
+        this.setState(ControllerState.STARTING);
+        this.notify();
+    }
+
+    stop(): void {
+        this.setState(ControllerState.STOPPED);
+        this.notify();
+    }
 
     fail(): void {
         this.setState(ControllerState.FAILED);
-        this.notifyModification();
+        this.notify();
     }
 
     restart(): void {
         this.setState(ControllerState.STARTING);
-        this.notifyModification();
+        this.notify();
     }
+
+    close(): void {
+        this.setState(ControllerState.CLOSED);
+        this.notify();
+    }    
 
     setState(state: ControllerState) {
         this.controllerState = state;
@@ -89,7 +105,7 @@ export abstract class AbstractController<T extends MediaObject> implements Contr
         return this.controllerState;
     }
 
-    protected abstract notifyModification(): void;
+    protected abstract notify(): void;
 
     getMediaObject(): T {
         return this.mediaObject!;

@@ -8,11 +8,11 @@ import { WebRtcManager } from "../WebRtcManager";
 
 
 
-export interface InboundController<T extends MediaObject> extends RemoteController<T> {
+export interface InboundController<T extends MediaObject = MediaObject> extends RemoteController<T> {
     load(transmissionId: string | null): void;
 }
 
-export abstract class AbstractInboundController<T extends MediaObject> extends AbstractRemoteController<T> {
+export abstract class AbstractInboundController<T extends MediaObject = MediaObject> extends AbstractRemoteController<T> {
 
     constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, controllerId: string) {
         super(webRtcManager, remoteSid, label, controllerId);
@@ -20,14 +20,14 @@ export abstract class AbstractInboundController<T extends MediaObject> extends A
 
     abstract load(transmissionId: string | null): void;
 
-    protected notifyModification() {
+    protected notify() {
         this.webRtcManager.controllerManager.inboundControllers.modify(this.getControllerId());
     }
 
 }
 
 
-export class TransmissionInboundController<T extends MediaObject> extends AbstractInboundController<T> {
+export class TransmissionInboundController<T extends MediaObject = MediaObject> extends AbstractInboundController<T> {
 
     unsubscribeListener: UnsubscribeCallback | null = null;
 
@@ -66,17 +66,17 @@ export class TransmissionInboundController<T extends MediaObject> extends Abstra
                         break;
                 }
 
-                this.notifyModification();
+                this.notify();
             });
         }
 
-        this.notifyModification();
+        this.notify();
 
     }
 
 
     private removeStream() {
-        if (this.transmissionId) this.webRtcManager.mediaDevicesManager.removeMediaObject(this.remoteSid, this.transmissionId);
+        if (this.transmissionId) this.webRtcManager.mediaDevicesManager.removeMediaObject(this.transmissionId);
     }
     
 

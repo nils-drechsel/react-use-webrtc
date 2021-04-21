@@ -5,6 +5,7 @@ export declare enum ControllerState {
     STARTING = "STARTING",
     READY = "READY",
     FAILED = "FAILED",
+    STOPPED = "STOPPED",
     CLOSED = "CLOSED"
 }
 export declare enum RtcControllerMessage {
@@ -27,9 +28,11 @@ export interface ModifyInboundControllerPayload {
     state: ControllerState;
 }
 export interface Controller<T extends MediaObject> {
+    start(): void;
     fail(): void;
     restart(): void;
     stop(): void;
+    close(): void;
     setState(state: ControllerState): void;
     getState(): ControllerState;
     getMediaObject(): T;
@@ -48,12 +51,14 @@ export declare abstract class AbstractController<T extends MediaObject> implemen
     label: string;
     mediaObject: T | null;
     constructor(webRtcManager: WebRtcManager, label: string, controllerId?: string | null);
-    abstract stop(): void;
+    start(): void;
+    stop(): void;
     fail(): void;
     restart(): void;
+    close(): void;
     setState(state: ControllerState): void;
     getState(): ControllerState;
-    protected abstract notifyModification(): void;
+    protected abstract notify(): void;
     getMediaObject(): T;
     getLabel(): string;
     getControllerId(): string;

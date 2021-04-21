@@ -1,3 +1,4 @@
+import { ListenerEvent } from "react-use-listeners";
 import { MediaObject, MediaStreamObject } from "../Media/MediaDevicesManager";
 import { Transmission } from "../Transmission/TransmissionManager";
 import { WebRtcManager } from "../WebRtcManager";
@@ -6,11 +7,11 @@ import { LocalController } from "./LocalController";
 
 
 
-export interface OutboundController<T extends MediaObject> extends RemoteController<T> {
+export interface OutboundController<T extends MediaObject = MediaObject> extends RemoteController<T> {
     load(mediaObject: T): void;
 }
 
-export abstract class AbstractOutboundController<T extends MediaObject> extends AbstractRemoteController<T> implements OutboundController<T> {
+export abstract class AbstractOutboundController<T extends MediaObject = MediaObject> extends AbstractRemoteController<T> implements OutboundController<T> {
 
     localController: LocalController<T>;
     transmissionId: string | null = null;
@@ -20,13 +21,52 @@ export abstract class AbstractOutboundController<T extends MediaObject> extends 
         super(webRtcManager, remoteSid, label, null);
         this.remoteSid = remoteSid;
         this.localController = localController;
-        this.localController.registerOutboundController(this);
-        
+
+        webRtcManager.controllerManager.outboundControllers.addSubIdListener(remoteSid, localController.getControllerId(), (event) => {
+            switch (event) {
+                case ListenerEvent.ADDED:
+                case ListenerEvent.MODIFIED:
+
+                    switch (localController.getState()) {
+                        case ControllerState.STARTING:
+                            if (this.getState() !== ControllerState.STARTING)
+                                this.start();
+                            break;
+                        case ControllerState.READY:
+                            if (this.getState() !== ControllerState.READY)
+                                this.load();
+                            break;
+                        case ControllerState.FAILED:
+                            if (this.getState() !== ControllerState.FAILED)
+                                this.fail();
+                            break;
+                        case ControllerState.STOPPED:
+                            if (this.getState() !== ControllerState.STOPPED)
+                                this.fail();
+                            break;
+                        case ControllerState.CLOSED:
+                            if (this.getState() !== ControllerState.FAILED)
+                                this.close();
+                            break;
+                        default: throw new Error("unknown state");
+                    }
+
+                    break;
+
+                case ListenerEvent.REMOVED:
+                    this.stop();
+                    break;
+                default: throw new Error("unknown event " + event);
+
+            }
+        })
+
+
     }
 
-    abstract load(mediaObject: T): void;
+    abstract load(): void;
 
-    protected notifyModification() {
+    protected notify() {
         this.webRtcManager.controllerManager.outboundControllers.modify(this.getControllerId());
     }
 
@@ -35,7 +75,9 @@ export abstract class AbstractOutboundController<T extends MediaObject> extends 
 export class OutboundStreamController extends AbstractOutboundController<MediaStreamObject> {
 
 
-    load(mediaObject: MediaStreamObject): void {
+    load(): void {
+
+        const mediaObject = this.localController.getMediaObject();
 
         if (mediaObject.stream) this.transmissionId = this.webRtcManager.transmissionManager.addStreamTransmission(this.remoteSid, mediaObject.stream, this.label!);
 
@@ -44,6 +86,11 @@ export class OutboundStreamController extends AbstractOutboundController<MediaSt
         this.webRtcManager.controllerManager.sendAddInboundController(this.remoteSid, { controllerId: this.controllerId, label: this.label, transmissionId: this.transmissionId, state: this.getState() });
 
 
+    }
+
+    start() {
+        super.start();
+        this.webRtcManager.controllerManager.sendModifyInboundController(this.remoteSid, { controllerId: this.controllerId, transmissionId: null, state: this.getState() });
     }
 
     fail() {
@@ -56,20 +103,15 @@ export class OutboundStreamController extends AbstractOutboundController<MediaSt
         this.webRtcManager.controllerManager.sendModifyInboundController(this.remoteSid, { controllerId: this.controllerId, transmissionId: null, state: this.getState() });
     }
 
-    unload() {
+    close() {
         this.setState(ControllerState.CLOSED);
         this.transmissionId = null;
         this.webRtcManager.controllerManager.sendModifyInboundController(this.remoteSid, { controllerId: this.controllerId, transmissionId: null, state: this.getState() });
     }
 
-    async start(): Promise<void> {
-
-    }
-
     stop() {
         this.webRtcManager.controllerManager.sendRemoveInboundController(this.remoteSid, { controllerId: this.controllerId});
         this.controllerState = ControllerState.CLOSED;
-        if (this.localController) this.localController.deregisterOutboundController(this.controllerId);
     }
 
     getTransmission(): Transmission | undefined {
