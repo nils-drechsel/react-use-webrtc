@@ -1,3 +1,4 @@
+import { InboundControllerBuilder } from "./Controller/Controller";
 import { ControllerManager } from "./Controller/ControllerManager";
 import { MediaDevicesManager } from "./Media/MediaDevicesManager";
 import { TransmissionManager } from "./Transmission/TransmissionManager";
@@ -10,6 +11,6 @@ export declare class WebRtcManager {
     transmissionManager: TransmissionManager;
     mediaDevicesManager: MediaDevicesManager;
     signallingChannel: SignallingChannel;
-    constructor(signallingChannel: SignallingChannel, sid: string, configuration: RTCConfiguration, logging?: boolean);
+    constructor(signallingChannel: SignallingChannel, sid: string, configuration: RTCConfiguration, inboundControllerBuilder: InboundControllerBuilder, logging?: boolean);
     setSid(sid: string): void;
 }

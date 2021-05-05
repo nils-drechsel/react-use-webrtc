@@ -1,28 +1,41 @@
 import { MutableRefObject } from "react";
-import { DataListeners, ObservedMapImpl } from "react-use-listeners";
+import { DataListenerCallback, DataListeners, ObservedMapImpl } from "react-use-listeners";
 import { UnsubscribeCallback } from "react-use-listeners";
-import { DataListenerCallback, ObservedMap } from "react-use-listeners";
+import { ObservedMap } from "react-use-listeners";
+import { ControllerState } from "../Controller/Controller";
 
 export enum LocalMediaInput {
-    CAMERA = 'CAMERA',
-    SCREEN = 'SCREEN',
+    CAMERA = "CAMERA",
+    SCREEN = "SCREEN",
 }
 
 export type MediaDevice = {
     id: string;
     label: string;
     info: MediaDeviceInfo;
-}
+};
 
 export enum MediaType {
     STREAM,
-    DATA
+    DATA,
 }
 
 export enum StreamSubType {
     LOCAL_CAMERA,
     LOCAL_SCREEN,
-    REMOTE
+    REMOTE,
+}
+
+export interface MediaItem {
+    type: MediaType;
+    obj: MediaObject | null;
+    label: string;
+    state: ControllerState;
+    remoteSid: string | null;
+}
+
+export interface StreamMediaItem extends MediaItem {
+    subType: StreamSubType;
 }
 
 export interface MediaObject {
@@ -32,7 +45,7 @@ export interface MediaObject {
 
 export interface MediaStreamObject extends MediaObject {
     subType: StreamSubType;
-    stream: MediaStream | null;
+    stream: MediaStream | null;
     width: number | null;
     height: number | null;
     hasVideo: boolean;
@@ -47,7 +60,7 @@ export interface RemoteMediaStreamObject extends MediaStreamObject {
 export enum MediaPermissions {
     SUCCESS = "SUCCESS",
     DISALLOWED = "DISALLOWED",
-    FAIL = "FAIL"
+    FAIL = "FAIL",
 }
 
 export class MediaPermissionsException extends Error {
@@ -59,7 +72,6 @@ export class MediaPermissionsException extends Error {
     }
 }
 
-
 export interface Devices {
     video: Map<string, MediaDevice>;
     audioInput: Map<string, MediaDevice>;
@@ -67,7 +79,6 @@ export interface Devices {
 }
 
 export class MediaDevicesManager {
-
     videoOutputs: Map<string, MutableRefObject<HTMLVideoElement>> = new Map();
 
     mediaObjects: ObservedMap<MediaObject> = new ObservedMapImpl();
@@ -82,13 +93,12 @@ export class MediaDevicesManager {
 
     logging: boolean;
 
-    permissions: MediaPermissions  | null = null;
+    permissions: MediaPermissions | null = null;
 
     constructor(logging = true) {
         this.logging = logging;
         navigator.mediaDevices.ondevicechange = (_event: Event) => this.refreshDevices();
     }
-
 
     listenForPermissions(callback: DataListenerCallback<MediaPermissions>): UnsubscribeCallback {
         const result = this.permissionListeners.addListener(callback);
@@ -99,7 +109,7 @@ export class MediaDevicesManager {
     }
 
     registerVideoOutput(id: string, ref: MutableRefObject<HTMLVideoElement>, objId?: string) {
-        if (this.logging) console.log('register video output', id, objId);
+        if (this.logging) console.log("register video output", id, objId);
         this.videoOutputs.set(id, ref);
         if (objId) {
             this.connectStreamToOutput(objId, id);
@@ -107,28 +117,45 @@ export class MediaDevicesManager {
     }
 
     deregisterVideoOutput(id: string) {
-        if (this.logging) console.log('deregister video output', id);
+        if (this.logging) console.log("deregister video output", id);
         //this.stopOutput(id);
         this.videoOutputs.delete(id);
     }
 
+    addRemoteMediaStream(remoteSid: string, objId: string, stream: MediaStream): MediaStreamObject {
+        if (this.logging) console.log("adding media stream", objId, stream, remoteSid);
 
-    addRemoteMediaStream(objId: string, remoteSid: string, stream: MediaStream): MediaStreamObject {
-        if (this.logging) console.log('adding media stream', objId, stream, remoteSid);
-
-        return this.addMediaStreamObject(objId, { objId, type: MediaType.STREAM, subType: StreamSubType.REMOTE, stream, remoteSid } as RemoteMediaStreamObject, stream);
+        return this.addMediaStreamObject(
+            objId,
+            {
+                objId,
+                type: MediaType.STREAM,
+                subType: StreamSubType.REMOTE,
+                stream,
+                remoteSid,
+            } as RemoteMediaStreamObject,
+            stream
+        );
     }
 
     addLocalCameraStream(objId: string, stream: MediaStream): MediaStreamObject {
-        if (this.logging) console.log('adding local camera stream', objId, stream);
+        if (this.logging) console.log("adding local camera stream", objId, stream);
 
-        return this.addMediaStreamObject(objId, { objId, type: MediaType.STREAM, subType: StreamSubType.LOCAL_CAMERA, stream } as MediaStreamObject, stream);
+        return this.addMediaStreamObject(
+            objId,
+            { objId, type: MediaType.STREAM, subType: StreamSubType.LOCAL_CAMERA, stream } as MediaStreamObject,
+            stream
+        );
     }
 
     addLocalScreenStream(objId: string, stream: MediaStream): MediaStreamObject {
-        if (this.logging) console.log('adding local screen stream', objId, stream);
+        if (this.logging) console.log("adding local screen stream", objId, stream);
 
-        return this.addMediaStreamObject(objId, { objId, type: MediaType.STREAM, subType: StreamSubType.LOCAL_SCREEN, stream } as MediaStreamObject, stream);
+        return this.addMediaStreamObject(
+            objId,
+            { objId, type: MediaType.STREAM, subType: StreamSubType.LOCAL_SCREEN, stream } as MediaStreamObject,
+            stream
+        );
     }
 
     updateStreamDimensions(objId: string, width: number, height: number) {
@@ -144,27 +171,23 @@ export class MediaDevicesManager {
     private getStreamDimensions(stream: MediaStream): [number | null, number | null] {
         const videoTracks = stream.getVideoTracks();
 
-        const width = videoTracks.length > 0 ? videoTracks[0].getSettings().width || null: null;
+        const width = videoTracks.length > 0 ? videoTracks[0].getSettings().width || null : null;
         const height = videoTracks.length > 0 ? videoTracks[0].getSettings().height || null : null;
-        
+
         return [width, height];
     }
 
-    private addMediaStreamObject(objId: string, mediaStreamObject: MediaStreamObject, stream: MediaStream): MediaStreamObject {
-
-
+    private addMediaStreamObject(
+        objId: string,
+        mediaStreamObject: MediaStreamObject,
+        stream: MediaStream
+    ): MediaStreamObject {
         if (this.mediaObjects.has(objId)) {
-
             const [width, height] = this.getStreamDimensions(stream);
 
-            const streamObject = (this.mediaObjects.get(objId) as MediaStreamObject);
-
-            if (streamObject.stream) {
-                this.stopMediaStream(streamObject.stream);
-            }
+            const streamObject = this.mediaObjects.get(objId) as MediaStreamObject;
 
             streamObject.stream = stream;
-            this.addStreamListeners(objId, streamObject, stream);
             if (width) streamObject.width = width;
             if (height) streamObject.height = height;
 
@@ -181,8 +204,7 @@ export class MediaDevicesManager {
         mediaStreamObject.hasVideo = Array.from(stream.getVideoTracks()).length > 0;
         mediaStreamObject.hasAudio = Array.from(stream.getAudioTracks()).length > 0;
 
-
-        this.addStreamListeners(objId, mediaStreamObject, stream);        
+        this.addStreamListeners(objId, mediaStreamObject, stream);
 
         this.mediaObjects.set(objId, mediaStreamObject);
 
@@ -191,16 +213,15 @@ export class MediaDevicesManager {
 
     private addStreamListeners(objId: string, mediaObject: MediaStreamObject, stream: MediaStream) {
         // remove stream when one of the tracks has ended
-        stream.getTracks().forEach(track => {
+        stream.getTracks().forEach((track) => {
             track.onended = () => {
-                if (this.logging) console.log("track has ended", objId)
+                if (this.logging) console.log("track has ended", objId);
                 this.mediaObjects.delete(objId);
-            }
+            };
         });
 
-        stream.onaddtrack = ((_e: MediaStreamTrackEvent) => {
-
-            if (this.logging) console.log('track was added', objId, stream);
+        stream.onaddtrack = (_e: MediaStreamTrackEvent) => {
+            if (this.logging) console.log("track was added", objId, stream);
             const [newWidth, newHeight] = this.getStreamDimensions(stream);
             if (newWidth && newHeight) {
                 mediaObject.width = newWidth;
@@ -208,12 +229,10 @@ export class MediaDevicesManager {
             }
 
             this.mediaObjects.modify(objId);
+        };
 
-            
-        });
-        
-        stream.onremovetrack = ((_e: MediaStreamTrackEvent) => {
-            if (this.logging) console.log('track was removed', objId, stream);
+        stream.onremovetrack = (_e: MediaStreamTrackEvent) => {
+            if (this.logging) console.log("track was removed", objId, stream);
 
             if (stream.getTracks().length == 0) this.mediaObjects.delete(objId);
 
@@ -224,9 +243,7 @@ export class MediaDevicesManager {
             }
 
             this.mediaObjects.modify(objId);
-
-            
-        });
+        };
     }
 
     stopStream(objId: string) {
@@ -236,27 +253,27 @@ export class MediaDevicesManager {
         // stop stream in case it's of type STREAM
         if (obj.type !== MediaType.STREAM) return;
         const mediaObject: MediaStreamObject = obj as MediaStreamObject;
-        if (this.logging) console.log('stopping stream', objId);
+        if (this.logging) console.log("stopping stream", objId);
         if (mediaObject.stream) this.stopMediaStream(mediaObject.stream);
     }
 
     private stopMediaStream(stream: MediaStream): void {
-        stream?.getTracks().forEach(track => track.stop());
+        if (this.logging) console.log("stopping media stream", stream);
+        stream?.getTracks().forEach((track) => track.stop());
     }
 
     removeMediaObject(objId: string) {
+        if (this.logging) console.log("removing media object", objId);
         this.stopStream(objId);
         this.mediaObjects.delete(objId);
     }
 
-
     connectStreamToOutput(objId: string, outputId: string) {
-        if (this.logging) console.log('connecting stream to output', objId, outputId);
+        if (this.logging) console.log("connecting stream to output", objId, outputId);
 
         if (!this.mediaObjects.has(objId)) throw new Error("stream with id: " + objId + " is not available");
 
         if (!this.videoOutputs.has(outputId)) throw new Error("output with id: " + outputId + " is not available");
-
 
         const mediaObject = this.mediaObjects.get(objId)!;
 
@@ -267,7 +284,7 @@ export class MediaDevicesManager {
         mediaStreamObject.videoOutput = outputId;
 
         if (mediaObject.type !== MediaType.STREAM) throw new Error("media object " + objId + " is not a stream");
-        const stream = (mediaObject as MediaStreamObject).stream;        
+        const stream = (mediaObject as MediaStreamObject).stream;
 
         const output: MutableRefObject<HTMLVideoElement> = this.videoOutputs.get(outputId)!;
 
@@ -277,9 +294,10 @@ export class MediaDevicesManager {
     }
 
     connectAudioOutputToVideoOutput(audioId: string, outputId: string) {
-        if (this.logging) console.log('connecting audio output to video output', audioId, outputId);
+        if (this.logging) console.log("connecting audio output to video output", audioId, outputId);
 
-        if (!this.audioOutputDevices.has(audioId)) throw new Error("audio output with id: " + audioId + " is not available");
+        if (!this.audioOutputDevices.has(audioId))
+            throw new Error("audio output with id: " + audioId + " is not available");
         if (!this.videoOutputs.has(outputId)) throw new Error("output with id: " + outputId + " is not available");
 
         const audio: MediaDeviceInfo = this.audioOutputDevices.get(audioId)!.info;
@@ -289,15 +307,14 @@ export class MediaDevicesManager {
         this.audioConnections.set(outputId, audioId);
 
         videoElement.setSinkId(audio.deviceId);
-
     }
-
 
     private async requestMediaPermissions(): Promise<MediaPermissions> {
         const constraints = { video: true, audio: true };
         try {
+            console.log("requesting media permissions");
             const feed = await this.getVideoFeed(constraints);
-            feed.getTracks().forEach(track => track.stop);
+            feed.getTracks().forEach((track) => track.stop);
         } catch (e) {
             if (e instanceof DOMException) {
                 switch (e.name) {
@@ -325,16 +342,19 @@ export class MediaDevicesManager {
         }
     }
 
-
-    async getCameraStream(objId: string, cameraDeviceId?: string | null, audioDeviceId?: string | null): Promise<MediaStreamObject> {
-        if (this.logging) console.log('local camera stream', cameraDeviceId, audioDeviceId);
+    async getCameraStream(
+        objId: string,
+        cameraDeviceId?: string | null,
+        audioDeviceId?: string | null
+    ): Promise<MediaStreamObject> {
+        if (this.logging) console.log("local camera stream", cameraDeviceId, audioDeviceId);
 
         await this.assertMediaPermissions();
-        
-        const constraints = {video: true, audio: true};
+
+        const constraints = { video: true, audio: true };
         if (cameraDeviceId) Object.assign(constraints, { video: { deviceId: { exact: cameraDeviceId } } });
         if (audioDeviceId) Object.assign(constraints, { audio: { deviceId: { exact: audioDeviceId } } });
-        
+
         return await this.getStream(objId, false, constraints);
     }
 
@@ -344,7 +364,7 @@ export class MediaDevicesManager {
         this.removeMediaObject(objId);
 
         return await this.getStream(objId, true, undefined);
-    }    
+    }
 
     private async getVideoFeed(constraints?: MediaStreamConstraints): Promise<MediaStream> {
         return navigator.mediaDevices.getUserMedia(constraints);
@@ -354,12 +374,14 @@ export class MediaDevicesManager {
         return (navigator.mediaDevices as any).getDisplayMedia();
     }
 
-
-    private async getStream(objId: string, screenshare: boolean, constraints?: MediaStreamConstraints | undefined): Promise<MediaStreamObject> {
-        if (this.logging) console.log('loading stream', objId);
+    private async getStream(
+        objId: string,
+        screenshare: boolean,
+        constraints?: MediaStreamConstraints | undefined
+    ): Promise<MediaStreamObject> {
+        if (this.logging) console.log("loading stream", objId);
 
         try {
-
             let stream: MediaStream;
 
             if (screenshare) {
@@ -369,7 +391,6 @@ export class MediaDevicesManager {
                 stream = await this.getVideoFeed(constraints);
                 return this.addLocalCameraStream(objId, stream);
             }
-
         } catch (e) {
             if (this.logging) console.log("error loading stream", e);
             throw new Error("stream is unavailable");
@@ -380,18 +401,17 @@ export class MediaDevicesManager {
         return this.mediaObjects.has(objId);
     }
 
-    getMediaObject(objId: string): MediaObject | null {
+    getMediaObject(objId: string): MediaObject | null {
         return this.mediaObjects.get(objId)!;
     }
 
-    private createDeviceLabel(map: Map<string, MediaDevice>, info: MediaDeviceInfo): string {
+    private createDeviceLabel(map: ObservedMap<MediaDevice>, info: MediaDeviceInfo): string {
         if (info.label) return info.label.replace(/ *\([^)]*\) */g, "");
-        if (info.kind === "videoinput") return "Camera " + (map.size + 1);
-        if (info.kind === "audioinput") return "Microphone " + (map.size + 1);
-        if (info.kind === "audiooutput") return "Speaker " + (map.size + 1);
+        if (info.kind === "videoinput") return "Camera " + (map.size() + 1);
+        if (info.kind === "audioinput") return "Microphone " + (map.size() + 1);
+        if (info.kind === "audiooutput") return "Speaker " + (map.size() + 1);
         throw new Error("unknown device " + info);
     }
-
 
     async refreshDevices(): Promise<void> {
         if (this.logging) console.log("refreshing devices");
@@ -399,16 +419,29 @@ export class MediaDevicesManager {
         try {
             const devices = await navigator.mediaDevices.enumerateDevices();
 
-            devices.forEach(device => {
-                if (device.kind === "videoinput") this.videoDevices.set(device.deviceId, { id: device.deviceId, label: this.createDeviceLabel(this.videoDevices, device), info: device });
-                if (device.kind === "audioinput") this.audioInputDevices.set(device.deviceId, { id: device.deviceId, label: this.createDeviceLabel(this.audioInputDevices, device), info: device });
-                if (device.kind === "audiooutput") this.audioOutputDevices.set(device.deviceId, { id: device.deviceId, label: this.createDeviceLabel(this.audioOutputDevices, device), info: device });
+            devices.forEach((device) => {
+                if (device.kind === "videoinput")
+                    this.videoDevices.set(device.deviceId, {
+                        id: device.deviceId,
+                        label: this.createDeviceLabel(this.videoDevices, device),
+                        info: device,
+                    });
+                if (device.kind === "audioinput")
+                    this.audioInputDevices.set(device.deviceId, {
+                        id: device.deviceId,
+                        label: this.createDeviceLabel(this.audioInputDevices, device),
+                        info: device,
+                    });
+                if (device.kind === "audiooutput")
+                    this.audioOutputDevices.set(device.deviceId, {
+                        id: device.deviceId,
+                        label: this.createDeviceLabel(this.audioOutputDevices, device),
+                        info: device,
+                    });
             });
         } catch (e) {
             // FIXME
         }
-
-
     }
 
     destroy() {
@@ -417,13 +450,11 @@ export class MediaDevicesManager {
         });
     }
 
-    getMediaConstraints() : MediaTrackSupportedConstraints {
+    getMediaConstraints(): MediaTrackSupportedConstraints {
         return navigator.mediaDevices.getSupportedConstraints();
     }
 
     getVideoOutputs(): Map<string, MutableRefObject<HTMLVideoElement>> {
         return this.videoOutputs;
     }
-
-
 }

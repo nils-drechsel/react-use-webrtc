@@ -1,74 +1,75 @@
 import { MediaObject } from "../Media/MediaDevicesManager";
-import { Transmission } from "../Transmission/TransmissionManager";
-import { WebRtcManager } from '../WebRtcManager';
+import { WebRtcManager } from "../WebRtcManager";
+import { InboundController } from "./InboundController";
 export declare enum ControllerState {
     STARTING = "STARTING",
     READY = "READY",
     FAILED = "FAILED",
-    STOPPED = "STOPPED",
-    CLOSED = "CLOSED"
+    STOPPED = "STOPPED"
 }
 export declare enum RtcControllerMessage {
     RTC_ADD_INBOUND_CONTROLLER = "RTC_ADD_INBOUND_CONTROLLER",
     RTC_REMOVE_INBOUND_CONTROLLER = "RTC_REMOVE_INBOUND_CONTROLLER",
-    RTC_MODIFY_INBOUND_CONTROLLER = "RTC_MODIFY_INBOUND_CONTROLLER"
+    RTC_MODIFY_INBOUND_CONTROLLER = "RTC_MODIFY_INBOUND_CONTROLLER",
+    RTC_MODIFY_OUTBOUND_CONTROLLER = "RTC_MODIFY_OUTBOUND_CONTROLLER"
 }
 export interface AddInboundControllerPayload {
     controllerId: string;
-    transmissionId: string | null;
     label: string;
     state: ControllerState;
+    type: string;
 }
 export interface RemoveInboundControllerPayload {
     controllerId: string;
 }
 export interface ModifyInboundControllerPayload {
     controllerId: string;
-    transmissionId: string | null;
+    mediaObjectId: string | null;
     state: ControllerState;
+}
+export interface ModifyOutboundControllerPayload {
+    controllerId: string;
+    state: ControllerState;
+}
+export interface InboundControllerBuilder {
+    (webRtcManagr: WebRtcManager, remoteSid: string, label: string, controllerId: string, controllerType: string): InboundController;
 }
 export interface Controller<T extends MediaObject> {
     start(): void;
+    ready(): void;
     fail(): void;
-    restart(): void;
     stop(): void;
-    close(): void;
+    destroy(): void;
+    load(mediaObjectId: string): void;
     setState(state: ControllerState): void;
     getState(): ControllerState;
-    getMediaObject(): T;
+    getMediaObject(): T | undefined;
+    getMediaObjectId(): string | null;
     getLabel(): string;
     getControllerId(): string;
-}
-export interface RemoteController<T extends MediaObject> extends Controller<T> {
-    setTransmissionId(transmissionId: string): void;
-    getTransmission(): Transmission | undefined;
-    getRemoteSid(): string;
+    getType(): string;
 }
 export declare abstract class AbstractController<T extends MediaObject> implements Controller<T> {
     webRtcManager: WebRtcManager;
     controllerId: string;
     controllerState: ControllerState;
     label: string;
-    mediaObject: T | null;
-    constructor(webRtcManager: WebRtcManager, label: string, controllerId?: string | null);
+    type: string;
+    mediaObjectId: string | null;
+    constructor(webRtcManager: WebRtcManager, label: string, type: string, controllerId?: string | null);
+    abstract load(mediaObjectId: string): void;
+    abstract destroy(): void;
+    protected abstract notify(): void;
+    getMediaObject(): T | undefined;
+    getMediaObjectId(): string | null;
+    protected setMediaObjectId(mediaObjectId: string): void;
+    getType(): string;
     start(): void;
+    ready(): void;
     stop(): void;
     fail(): void;
-    restart(): void;
-    close(): void;
     setState(state: ControllerState): void;
     getState(): ControllerState;
-    protected abstract notify(): void;
-    getMediaObject(): T;
     getLabel(): string;
     getControllerId(): string;
-}
-export declare abstract class AbstractRemoteController<T extends MediaObject> extends AbstractController<T> implements RemoteController<T> {
-    transmissionId: string | null;
-    remoteSid: string;
-    constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, controllerId: string | null);
-    getState(): ControllerState;
-    setTransmissionId(transmissionId: string | null): void;
-    getTransmission(): Transmission | undefined;
-    getRemoteSid(): string;
 }

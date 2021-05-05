@@ -1,31 +1,31 @@
 {
-  "name": "react-use-webrtc",
-  "version": "1.5.11",
-  "description": "",
-  "main": "lib/index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/nils-drechsel/react-use-webrtc.git"
-  },
-  "author": "Nils J. D. Drechsel",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/nils-drechsel/react-use-webrtc/issues"
-  },
-  "homepage": "https://github.com/nils-drechsel/react-use-webrtc#readme",
-  "devDependencies": {
-    "@types/react": "17.0.3",
-    "typescript": "4.2.3"
-  },
-  "dependencies": {
-    "@types/uuid": "8.3.0",
-    "react-use-listeners": "^2.0.12",
-    "react-use-variable": "^1.2.0",
-    "uuid": "8.3.2",
-    "webrtc-adapter": "7.7.1"
-  }
+    "name": "react-use-webrtc",
+    "version": "1.6.4",
+    "description": "",
+    "main": "lib/index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "build": "tsc"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/nils-drechsel/react-use-webrtc.git"
+    },
+    "author": "Nils J. D. Drechsel",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/nils-drechsel/react-use-webrtc/issues"
+    },
+    "homepage": "https://github.com/nils-drechsel/react-use-webrtc#readme",
+    "devDependencies": {
+        "@types/react": "17.0.3",
+        "typescript": "4.2.3"
+    },
+    "dependencies": {
+        "@types/uuid": "8.3.0",
+        "react-use-listeners": "^3.0.3",
+        "react-use-variable": "^1.2.0",
+        "uuid": "8.3.2",
+        "webrtc-adapter": "7.7.1"
+    }
 }

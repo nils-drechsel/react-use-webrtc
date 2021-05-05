@@ -1,4 +1,3 @@
-
 export enum SdpSectionType {
     AUDIO = "AUDIO",
     VIDEO = "VIDEO",
@@ -8,11 +7,8 @@ export enum SdpSectionType {
     UNKNOWN = "UNKNOWN",
 }
 
-
 export class SdpBase {
-
     extMapPattern = /^a=extmap:\d+ http/;
-
 
     isNewSection(line: string) {
         return line.startsWith("m=");
@@ -20,18 +16,26 @@ export class SdpBase {
 
     getSectionType(line: string) {
         // a=video
-        const type: string = line.substring(2);
+        const s = line.split(" ");
+        if (s.length === 0 || s[0].length <= 2) return SdpSectionType.UNKNOWN;
+        const type: string = s[0].substring(2);
         return this.identifySectionType(type);
     }
 
     identifySectionType(type: string): SdpSectionType {
         switch (type) {
-            case "audio": return SdpSectionType.AUDIO;
-            case "video": return SdpSectionType.VIDEO;
-            case "text": return SdpSectionType.TEXT;
-            case "application": return SdpSectionType.APPLICATION;
-            case "message": return SdpSectionType.MESSAGE;
-            default: return SdpSectionType.UNKNOWN; // there might be more types in the future.. don't break the app if we're not up to date
+            case "audio":
+                return SdpSectionType.AUDIO;
+            case "video":
+                return SdpSectionType.VIDEO;
+            case "text":
+                return SdpSectionType.TEXT;
+            case "application":
+                return SdpSectionType.APPLICATION;
+            case "message":
+                return SdpSectionType.MESSAGE;
+            default:
+                return SdpSectionType.UNKNOWN; // there might be more types in the future.. don't break the app if we're not up to date
         }
     }
 
@@ -39,7 +43,7 @@ export class SdpBase {
         return line.startsWith("a=msid:");
     }
 
-    getTransmissionInformation(line: string): [string, string | null] {
+    getMediaInformation(line: string): [string, string | null] {
         const info: string = line.substring(7);
         const ids: Array<string> = info.trim().split(" ");
         if (ids.length === 0) throw new Error("invalid transmission information " + line);
@@ -58,12 +62,9 @@ export class SdpBase {
     getMid(line: string): string {
         return line.substring(6).trim();
     }
-
 }
 
-
 export class SdpAccumulator extends SdpBase {
-
     lines: Array<string> = [];
 
     constructor() {
@@ -77,19 +78,14 @@ export class SdpAccumulator extends SdpBase {
     getLines() {
         return this.lines;
     }
-
 }
 
-
-
-
 export class SdpSection extends SdpAccumulator {
-
     url = "http://variational.io/";
-    
+
     lines: Array<string> = [];
     type: SdpSectionType = SdpSectionType.UNKNOWN;
-    transmissionIds: Array<string> = [];
+    mediaObjectIds: Array<string> = [];
     trackId: string | null = null;
     mid: string | null = null;
 
@@ -103,21 +99,17 @@ export class SdpSection extends SdpAccumulator {
         return this.type;
     }
 
-    getTransmissionIds(): Array<string> {
-        return this.transmissionIds;
+    getMediaObjectIds(): Array<string> {
+        return this.mediaObjectIds;
     }
 
     addLine(line: string) {
         if (this.isNewSection(line)) {
-
             this.type = this.getSectionType(line);
-
         } else if (this.isTransmissionInformation(line)) {
-
-            const [transmissionId, trackId] = this.getTransmissionInformation(line);
+            const [mediaObjectId, trackId] = this.getMediaInformation(line);
             this.trackId = trackId;
-            this.transmissionIds.push(transmissionId);
-
+            this.mediaObjectIds.push(mediaObjectId);
         } else if (this.isMid(line)) {
             this.mid = this.getMid(line);
         }
@@ -139,7 +131,7 @@ export class SdpSection extends SdpAccumulator {
     // }
 
     // getExtMapInfo(): Array<string> | null {
-        
+
     //     const escUrl = this.escapeRegExp(this.url);
     //     const pattern = new RegExp("^a=extmap:[0-9]+ " + escUrl + "([^ \\n]+)");
 
@@ -154,25 +146,18 @@ export class SdpSection extends SdpAccumulator {
     //     }
     //     return null;
     // }
-
 }
 
-
-
-
-
-
 export class Sdp extends SdpBase {
-
     header: SdpAccumulator = new SdpAccumulator();
     sections: Array<SdpSection> = [];
 
-    constructor(sdp: RTCSessionDescriptionInit | RTCSessionDescription) {
+    constructor(sdp: string) {
         super();
 
         let acc: SdpSection = this.header as SdpSection;
 
-        let lines = (sdp as string).split("\n");
+        let lines = sdp.split("\n");
 
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
@@ -180,24 +165,25 @@ export class Sdp extends SdpBase {
             if (this.isNewSection(line)) {
                 acc = new SdpSection();
                 this.sections.push(acc);
-            } 
-                
-            acc.addLine(line);
+            }
 
+            acc.addLine(line);
         }
+
+        console.log("sdp analysis", this.header, this.sections);
     }
 
     getSections(): Map<string, SdpSection> {
         const result = new Map();
-        this.sections.forEach(section => {
-            section.transmissionIds.forEach(transmissionId => {
+        this.sections.forEach((section) => {
+            section.mediaObjectIds.forEach((transmissionId) => {
                 result.set(transmissionId, section);
             });
         });
         return result;
     }
 
-    getSectionWithMid(mid: string): SdpSection | null {
+    getSectionWithMid(mid: string): SdpSection | null {
         for (let section of this.sections) {
             if (section.mid === mid) {
                 return section;
@@ -214,5 +200,4 @@ export class Sdp extends SdpBase {
         }
         return lines.join("\n") as RTCSessionDescriptionInit;
     }
-
 }

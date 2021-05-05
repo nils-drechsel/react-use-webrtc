@@ -12,7 +12,7 @@ export declare class SdpBase {
     getSectionType(line: string): SdpSectionType;
     identifySectionType(type: string): SdpSectionType;
     isTransmissionInformation(line: string): boolean;
-    getTransmissionInformation(line: string): [string, string | null];
+    getMediaInformation(line: string): [string, string | null];
     isExtMapUrl(line: string): boolean;
     isMid(line: string): boolean;
     getMid(line: string): string;
@@ -27,18 +27,18 @@ export declare class SdpSection extends SdpAccumulator {
     url: string;
     lines: Array<string>;
     type: SdpSectionType;
-    transmissionIds: Array<string>;
+    mediaObjectIds: Array<string>;
     trackId: string | null;
     mid: string | null;
     constructor();
     getType(): SdpSectionType;
-    getTransmissionIds(): Array<string>;
+    getMediaObjectIds(): Array<string>;
     addLine(line: string): void;
 }
 export declare class Sdp extends SdpBase {
     header: SdpAccumulator;
     sections: Array<SdpSection>;
-    constructor(sdp: RTCSessionDescriptionInit | RTCSessionDescription);
+    constructor(sdp: string);
     getSections(): Map<string, SdpSection>;
     getSectionWithMid(mid: string): SdpSection | null;
     get(): RTCSessionDescriptionInit;

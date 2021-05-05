@@ -1,7 +1,8 @@
 import { MutableRefObject } from "react";
-import { DataListeners } from "react-use-listeners";
+import { DataListenerCallback, DataListeners } from "react-use-listeners";
 import { UnsubscribeCallback } from "react-use-listeners";
-import { DataListenerCallback, ObservedMap } from "react-use-listeners";
+import { ObservedMap } from "react-use-listeners";
+import { ControllerState } from "../Controller/Controller";
 export declare enum LocalMediaInput {
     CAMERA = "CAMERA",
     SCREEN = "SCREEN"
@@ -19,6 +20,16 @@ export declare enum StreamSubType {
     LOCAL_CAMERA = 0,
     LOCAL_SCREEN = 1,
     REMOTE = 2
+}
+export interface MediaItem {
+    type: MediaType;
+    obj: MediaObject | null;
+    label: string;
+    state: ControllerState;
+    remoteSid: string | null;
+}
+export interface StreamMediaItem extends MediaItem {
+    subType: StreamSubType;
 }
 export interface MediaObject {
     type: MediaType;
@@ -64,7 +75,7 @@ export declare class MediaDevicesManager {
     listenForPermissions(callback: DataListenerCallback<MediaPermissions>): UnsubscribeCallback;
     registerVideoOutput(id: string, ref: MutableRefObject<HTMLVideoElement>, objId?: string): void;
     deregisterVideoOutput(id: string): void;
-    addRemoteMediaStream(objId: string, remoteSid: string, stream: MediaStream): MediaStreamObject;
+    addRemoteMediaStream(remoteSid: string, objId: string, stream: MediaStream): MediaStreamObject;
     addLocalCameraStream(objId: string, stream: MediaStream): MediaStreamObject;
     addLocalScreenStream(objId: string, stream: MediaStream): MediaStreamObject;
     updateStreamDimensions(objId: string, width: number, height: number): void;

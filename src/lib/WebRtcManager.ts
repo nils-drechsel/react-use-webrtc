@@ -1,3 +1,4 @@
+import { InboundControllerBuilder } from "./Controller/Controller";
 import { ControllerManager } from "./Controller/ControllerManager";
 import { MediaDevicesManager } from "./Media/MediaDevicesManager";
 import { TransmissionManager } from "./Transmission/TransmissionManager";
@@ -18,11 +19,11 @@ export class WebRtcManager {
     mediaDevicesManager: MediaDevicesManager;
     signallingChannel: SignallingChannel;
 
-    constructor(signallingChannel: SignallingChannel, sid: string, configuration: RTCConfiguration, logging = true) {
+    constructor(signallingChannel: SignallingChannel, sid: string, configuration: RTCConfiguration, inboundControllerBuilder: InboundControllerBuilder, logging = true) {
         this.signallingChannel = signallingChannel;
         this.mediaDevicesManager = new MediaDevicesManager(logging);
         this.transmissionManager = new TransmissionManager(this.signallingChannel, this.mediaDevicesManager, sid, configuration, logging);
-        this.controllerManager = new ControllerManager(this, logging);
+        this.controllerManager = new ControllerManager(this, inboundControllerBuilder, logging);
     }
 
 

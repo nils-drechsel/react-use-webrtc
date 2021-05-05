@@ -1,88 +1,108 @@
-import { MediaObject } from "../Media/MediaDevicesManager";
-import { Transmission, TransmissionState } from "../Transmission/TransmissionManager";
-import { ControllerState, AbstractRemoteController, RemoteController } from "./Controller";
+import { MediaItem, MediaObject } from "../Media/MediaDevicesManager";
+import { ControllerState } from "./Controller";
 import { ListenerEvent, UnsubscribeCallback } from "react-use-listeners";
 import { WebRtcManager } from "../WebRtcManager";
-
-
-
-
+import { AbstractRemoteController, RemoteController } from "./RemoteController";
 
 export interface InboundController<T extends MediaObject = MediaObject> extends RemoteController<T> {
-    load(transmissionId: string | null): void;
+    load(transmissionId: string): void;
+    getMediaItem(): MediaItem;
 }
 
-export abstract class AbstractInboundController<T extends MediaObject = MediaObject> extends AbstractRemoteController<T> {
-
-    constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, controllerId: string) {
-        super(webRtcManager, remoteSid, label, controllerId);
+export abstract class AbstractInboundController<T extends MediaObject = MediaObject>
+    extends AbstractRemoteController<T>
+    implements InboundController<T> {
+    constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, type: string, controllerId: string) {
+        super(webRtcManager, remoteSid, label, type, controllerId);
     }
 
-    abstract load(transmissionId: string | null): void;
+    abstract load(transmissionId: string): void;
+
+    abstract getMediaItem(): MediaItem;
 
     protected notify() {
         this.webRtcManager.controllerManager.inboundControllers.modify(this.getControllerId());
     }
 
-}
-
-
-export class TransmissionInboundController<T extends MediaObject = MediaObject> extends AbstractInboundController<T> {
-
-    unsubscribeListener: UnsubscribeCallback | null = null;
-
-    constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, controllerId: string) {
-        super(webRtcManager, remoteSid, label, controllerId);
+    destroy() {
+        this.stop();
+        this.webRtcManager.controllerManager.inboundControllers.delete(this.getControllerId());
     }
 
-    load(transmissionId: string | null) {
-        if (this.unsubscribeListener) this.unsubscribeListener();
+    start() {
+        this.webRtcManager.controllerManager.sendModifyOutboundController(this.remoteSid, {
+            controllerId: this.controllerId,
+            state: ControllerState.STARTING,
+        });
+        super.start();
+    }
 
-        this.setTransmissionId(transmissionId);
+    ready() {
+        this.webRtcManager.controllerManager.sendModifyOutboundController(this.remoteSid, {
+            controllerId: this.controllerId,
+            state: ControllerState.READY,
+        });
+        super.ready();
+    }
 
-        if (this.transmissionId) {
+    fail() {
+        this.webRtcManager.controllerManager.sendModifyOutboundController(this.remoteSid, {
+            controllerId: this.controllerId,
+            state: ControllerState.FAILED,
+        });
+        super.fail();
+    }
 
-            this.unsubscribeListener = this.webRtcManager.transmissionManager.listenForInboundTransmission(this.transmissionId!, (event: ListenerEvent) => {
+    stop() {
+        this.webRtcManager.controllerManager.sendModifyOutboundController(this.remoteSid, {
+            controllerId: this.controllerId,
+            state: ControllerState.STOPPED,
+        });
+        super.stop();
+    }
+}
+
+export abstract class AbstractTransmissionInboundController<
+    T extends MediaObject = MediaObject
+> extends AbstractInboundController<T> {
+    unsubscribeMediaObject: UnsubscribeCallback | null = null;
+
+    constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, type: string, controllerId: string) {
+        super(webRtcManager, remoteSid, label, type, controllerId);
+    }
+
+    load(mediaObjectId: string) {
+        if (mediaObjectId === this.mediaObjectId && this.getState() === ControllerState.READY) return;
+
+        this.setMediaObjectId(mediaObjectId);
+        console.log("inbound controller loaded with transmission", this.mediaObjectId);
+
+        if (this.unsubscribeMediaObject) this.unsubscribeMediaObject();
+        this.unsubscribeMediaObject = this.webRtcManager.mediaDevicesManager.mediaObjects.addIdListener(
+            mediaObjectId,
+            (_id, event) => {
                 switch (event) {
                     case ListenerEvent.ADDED:
                     case ListenerEvent.MODIFIED:
-                        const transmission: Transmission = this.webRtcManager.transmissionManager.getTransmission(this.remoteSid, this.transmissionId!)!;
-                        switch (transmission.state) {
-                            case TransmissionState.CONNECTED:
-                                this.controllerState = ControllerState.READY
-                                break;
-                            case TransmissionState.CONNECTING:
-                                this.controllerState = ControllerState.STARTING
-                                break;
-                            case TransmissionState.FAILED:
-                                this.controllerState = ControllerState.FAILED
-                                this.removeStream();
-                                break;
-                        }
+                        if (this.getState() !== ControllerState.READY && this.getMediaObject()) this.ready();
                         break;
                     case ListenerEvent.REMOVED:
-                        this.controllerState = ControllerState.CLOSED;
-                        this.removeStream();
-                        break;
+                        this.stop();
                 }
-
-                this.notify();
-            });
-        }
-
-        this.notify();
-
+            }
+        );
     }
-
 
     private removeStream() {
-        if (this.transmissionId) this.webRtcManager.mediaDevicesManager.removeMediaObject(this.transmissionId);
+        if (this.mediaObjectId) this.webRtcManager.mediaDevicesManager.removeMediaObject(this.mediaObjectId);
     }
-    
 
     stop() {
-        this.controllerState = ControllerState.CLOSED;
+        if (this.unsubscribeMediaObject) {
+            this.unsubscribeMediaObject();
+            this.unsubscribeMediaObject = null;
+        }
         this.removeStream();
+        super.stop();
     }
 }
-

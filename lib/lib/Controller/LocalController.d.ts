@@ -1,7 +1,8 @@
-import { MediaObject, MediaStreamObject } from "../Media/MediaDevicesManager";
+import { UnsubscribeCallback } from "react-use-listeners";
+import { MediaItem, MediaObject, MediaStreamObject } from "../Media/MediaDevicesManager";
 import { WebRtcManager } from "../WebRtcManager";
 import { AbstractController, Controller } from "./Controller";
-import { OutboundController, OutboundStreamController } from "./OutboundController";
+import { OutboundController } from "./OutboundController";
 /**
  * A local controller is related to a local resource. It can be a camera, a screencapture, picture galleries, etc..
  * Such controller can have corresponding outbout controllers which are in charge of delivering the local data to remote destinations.
@@ -11,24 +12,22 @@ import { OutboundController, OutboundStreamController } from "./OutboundControll
  * local controller is removed, it will temporarily adopt the CLOSED state.
  */
 export interface LocalController<T extends MediaObject = MediaObject> extends Controller<T> {
-    createOrGetOutboundController(remoteSid: string): OutboundController<T>;
+    createOutboundController(remoteSid: string): OutboundController<T>;
+    getMediaItem(): MediaItem;
 }
 export declare abstract class AbstractLocalController<T extends MediaObject> extends AbstractController<T> implements LocalController<T> {
-    constructor(webRtcManager: WebRtcManager, label: string, resourceId?: string);
-    abstract createOrGetOutboundController(remoteSid: string): OutboundController<T>;
+    unsubscribeMediaObject: UnsubscribeCallback | null;
+    constructor(webRtcManager: WebRtcManager, label: string, type: string, controllerId?: string);
+    abstract createOutboundController(remoteSid: string): OutboundController<T>;
+    abstract getMediaItem(): MediaItem;
+    destroy(): void;
     protected notify(): void;
+    stop(): void;
+    load(mediaObjectId: string): void;
 }
 export interface LocalStreamController extends LocalController<MediaStreamObject> {
-    createOrGetOutboundController(remoteSid: string): OutboundStreamController;
 }
 export declare abstract class AbstractLocalStreamController extends AbstractLocalController<MediaStreamObject> implements LocalStreamController {
-    constructor(webRtcManager: WebRtcManager, label: string, resourceId?: string);
-    abstract createOrGetOutboundController(remoteSid: string): OutboundStreamController;
-    stop(): void;
-}
-export declare abstract class AbstractLocalCameraStreamController extends AbstractLocalStreamController {
-    constructor(webRtcManager: WebRtcManager, label: string, resourceId?: string);
-    createOrGetOutboundController(remoteSid: string): OutboundStreamController;
-    load(mediaObject: MediaStreamObject): void;
+    constructor(webRtcManager: WebRtcManager, label: string, type: string, controllerId?: string);
     stop(): void;
 }

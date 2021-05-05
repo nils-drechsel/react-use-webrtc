@@ -1,8 +1,8 @@
-import { MediaObject, MediaStreamObject } from "../Media/MediaDevicesManager";
+import { ListenerEvent, UnsubscribeCallback } from "react-use-listeners";
+import { MediaItem, MediaObject, MediaStreamObject } from "../Media/MediaDevicesManager";
 import { WebRtcManager } from "../WebRtcManager";
 import { AbstractController, Controller, ControllerState } from "./Controller";
-import { OutboundController, OutboundStreamController } from "./OutboundController";
-
+import { OutboundController } from "./OutboundController";
 
 /**
  * A local controller is related to a local resource. It can be a camera, a screencapture, picture galleries, etc..
@@ -13,69 +13,74 @@ import { OutboundController, OutboundStreamController } from "./OutboundControll
  * local controller is removed, it will temporarily adopt the CLOSED state.
  */
 export interface LocalController<T extends MediaObject = MediaObject> extends Controller<T> {
-    createOrGetOutboundController(remoteSid: string): OutboundController<T>;
+    createOutboundController(remoteSid: string): OutboundController<T>;
+    getMediaItem(): MediaItem;
 }
 
-export abstract class AbstractLocalController<T extends MediaObject> extends AbstractController<T> implements LocalController<T> {
+export abstract class AbstractLocalController<T extends MediaObject>
+    extends AbstractController<T>
+    implements LocalController<T> {
+    unsubscribeMediaObject: UnsubscribeCallback | null = null;
 
-    constructor(webRtcManager: WebRtcManager, label: string, resourceId?: string) {
-        super(webRtcManager, label, resourceId);
+    constructor(webRtcManager: WebRtcManager, label: string, type: string, controllerId?: string) {
+        super(webRtcManager, label, type, controllerId);
     }
 
-    public abstract createOrGetOutboundController(remoteSid: string): OutboundController<T>;
+    abstract createOutboundController(remoteSid: string): OutboundController<T>;
 
+    abstract getMediaItem(): MediaItem;
+
+    destroy(): void {
+        this.stop();
+        this.webRtcManager.controllerManager.localControllers.delete(this.getControllerId());
+    }
 
     protected notify() {
         console.log("notifying local controller", this.getControllerId());
         this.webRtcManager.controllerManager.localControllers.modify(this.getControllerId());
     }
-}
-
-
-export interface LocalStreamController extends LocalController<MediaStreamObject> {
-
-    createOrGetOutboundController(remoteSid: string): OutboundStreamController;
-}
-
-export abstract class AbstractLocalStreamController extends AbstractLocalController<MediaStreamObject> implements LocalStreamController {
-
-    constructor(webRtcManager: WebRtcManager, label: string, resourceId?: string) {
-        super(webRtcManager, label, resourceId);
-    }
-
-    public abstract createOrGetOutboundController(remoteSid: string): OutboundStreamController;
 
     stop() {
-        super.stop();
-        const obj: MediaStreamObject | null = this.mediaObject;
-        if (!obj) return;
-        obj.stream?.getTracks().forEach(track => track.stop());
-        this.webRtcManager.mediaDevicesManager.stopStream(obj.objId);
-    }
-
-}
-
-
-export abstract class AbstractLocalCameraStreamController extends AbstractLocalStreamController {
-
-    constructor(webRtcManager: WebRtcManager, label: string, resourceId?: string) {
-        super(webRtcManager, label, resourceId);
-    }
-
-    createOrGetOutboundController(remoteSid: string): OutboundStreamController {
-        return this.webRtcManager.controllerManager.createOrGetOutboundStreamController(remoteSid, this.getLabel(), this);
-    }
-
-    load(mediaObject: MediaStreamObject) {
-        this.mediaObject = mediaObject;
-        this.controllerState = ControllerState.READY;
-        this.notify();        
-    }
-
-    stop() {
-        super.stop();
         this.webRtcManager.mediaDevicesManager.removeMediaObject(this.controllerId);
+        if (this.unsubscribeMediaObject) {
+            this.unsubscribeMediaObject();
+            this.unsubscribeMediaObject = null;
+        }
+        super.stop();
     }
 
+    load(mediaObjectId: string) {
+        if (this.unsubscribeMediaObject) this.unsubscribeMediaObject();
+        this.setMediaObjectId(mediaObjectId);
 
+        this.unsubscribeMediaObject = this.webRtcManager.mediaDevicesManager.mediaObjects.addIdListener(
+            this.getControllerId(),
+            (_id, event) => {
+                switch (event) {
+                    case ListenerEvent.ADDED:
+                        if (this.getState() !== ControllerState.READY) this.ready();
+                        break;
+                    case ListenerEvent.REMOVED:
+                        if (this.getState() !== ControllerState.STOPPED) this.stop();
+                }
+            }
+        );
+    }
+}
+
+export interface LocalStreamController extends LocalController<MediaStreamObject> {}
+
+export abstract class AbstractLocalStreamController
+    extends AbstractLocalController<MediaStreamObject>
+    implements LocalStreamController {
+    constructor(webRtcManager: WebRtcManager, label: string, type: string, controllerId?: string) {
+        super(webRtcManager, label, type, controllerId);
+    }
+
+    stop() {
+        console.log("stopping local controller", this.getControllerId());
+        const obj: MediaStreamObject | undefined = this.getMediaObject();
+        if (obj) this.webRtcManager.mediaDevicesManager.stopStream(obj.objId);
+        super.stop();
+    }
 }

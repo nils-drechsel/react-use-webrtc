@@ -1,101 +1,133 @@
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import { MediaObject } from "../Media/MediaDevicesManager";
-import { Transmission } from "../Transmission/TransmissionManager";
-import { WebRtcManager } from '../WebRtcManager';
+import { WebRtcManager } from "../WebRtcManager";
+import { InboundController } from "./InboundController";
 
 export enum ControllerState {
     STARTING = "STARTING",
     READY = "READY",
     FAILED = "FAILED",
     STOPPED = "STOPPED",
-    CLOSED = "CLOSED"
 }
-
 
 export enum RtcControllerMessage {
     RTC_ADD_INBOUND_CONTROLLER = "RTC_ADD_INBOUND_CONTROLLER",
     RTC_REMOVE_INBOUND_CONTROLLER = "RTC_REMOVE_INBOUND_CONTROLLER",
     RTC_MODIFY_INBOUND_CONTROLLER = "RTC_MODIFY_INBOUND_CONTROLLER",
+    RTC_MODIFY_OUTBOUND_CONTROLLER = "RTC_MODIFY_OUTBOUND_CONTROLLER",
 }
 
 export interface AddInboundControllerPayload {
-    controllerId: string,
-    transmissionId: string | null,
-    label: string,
-    state: ControllerState,
+    controllerId: string;
+    label: string;
+    state: ControllerState;
+    type: string;
 }
 
 export interface RemoveInboundControllerPayload {
-    controllerId: string,
+    controllerId: string;
 }
 
 export interface ModifyInboundControllerPayload {
-    controllerId: string,
-    transmissionId: string | null,
-    state: ControllerState,
+    controllerId: string;
+    mediaObjectId: string | null;
+    state: ControllerState;
 }
 
+export interface ModifyOutboundControllerPayload {
+    controllerId: string;
+    state: ControllerState;
+}
 
+export interface InboundControllerBuilder {
+    (
+        webRtcManagr: WebRtcManager,
+        remoteSid: string,
+        label: string,
+        controllerId: string,
+        controllerType: string
+    ): InboundController;
+}
 
 export interface Controller<T extends MediaObject> {
     start(): void;
+    ready(): void;
     fail(): void;
-    restart(): void;
     stop(): void;
-    close(): void;
+    destroy(): void;
+    load(mediaObjectId: string): void;
+
     setState(state: ControllerState): void;
     getState(): ControllerState;
-    getMediaObject(): T;
+    getMediaObject(): T | undefined;
+    getMediaObjectId(): string | null;
     getLabel(): string;
     getControllerId(): string;
+    getType(): string;
 }
-
-export interface RemoteController<T extends MediaObject> extends Controller<T> {
-    setTransmissionId(transmissionId: string): void;
-    getTransmission(): Transmission | undefined;
-    getRemoteSid(): string;
-}
-
-
 
 export abstract class AbstractController<T extends MediaObject> implements Controller<T> {
-
     webRtcManager: WebRtcManager;
     controllerId: string;
     controllerState: ControllerState = ControllerState.STOPPED;
     label: string;
-    mediaObject: T | null = null;
+    type: string;
+    mediaObjectId: string | null = null;
 
-    constructor(webRtcManager: WebRtcManager, label: string, controllerId?: string | null) {
+    constructor(webRtcManager: WebRtcManager, label: string, type: string, controllerId?: string | null) {
         this.webRtcManager = webRtcManager;
         this.label = label;
-        this.controllerId = controllerId || uuidv4();
+        this.controllerId = controllerId ?? uuidv4();
+        this.type = type;
+    }
+
+    public abstract load(mediaObjectId: string): void;
+
+    public abstract destroy(): void;
+
+    protected abstract notify(): void;
+
+    public getMediaObject(): T | undefined {
+        return this.mediaObjectId
+            ? (this.webRtcManager.mediaDevicesManager.getMediaObject(this.mediaObjectId) as T)
+            : undefined;
+    }
+
+    public getMediaObjectId() {
+        return this.mediaObjectId;
+    }
+
+    protected setMediaObjectId(mediaObjectId: string) {
+        this.mediaObjectId = mediaObjectId;
+    }
+
+    getType(): string {
+        return this.type;
     }
 
     start(): void {
+        if (this.getState() === ControllerState.STARTING) return;
         this.setState(ControllerState.STARTING);
         this.notify();
     }
 
+    ready(): void {
+        if (this.getState() === ControllerState.READY) return;
+        this.setState(ControllerState.READY);
+        this.notify();
+    }
+
     stop(): void {
+        if (this.getState() === ControllerState.STOPPED) return;
         this.setState(ControllerState.STOPPED);
         this.notify();
     }
 
     fail(): void {
+        if (this.getState() === ControllerState.FAILED) return;
         this.setState(ControllerState.FAILED);
         this.notify();
     }
-
-    restart(): void {
-        this.setState(ControllerState.STARTING);
-        this.notify();
-    }
-
-    close(): void {
-        this.setState(ControllerState.CLOSED);
-        this.notify();
-    }    
 
     setState(state: ControllerState) {
         this.controllerState = state;
@@ -105,12 +137,6 @@ export abstract class AbstractController<T extends MediaObject> implements Contr
         return this.controllerState;
     }
 
-    protected abstract notify(): void;
-
-    getMediaObject(): T {
-        return this.mediaObject!;
-    }
-
     getLabel(): string {
         return this.label;
     }
@@ -118,36 +144,4 @@ export abstract class AbstractController<T extends MediaObject> implements Contr
     getControllerId() {
         return this.controllerId;
     }
-
-}
-
-
-
-export abstract class AbstractRemoteController<T extends MediaObject> extends AbstractController<T> implements RemoteController<T> {
-
-    transmissionId: string | null = null;
-    remoteSid: string;
-
-    constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, controllerId: string | null) {
-        super(webRtcManager, label, controllerId);
-        this.remoteSid = remoteSid;
-    }
-
-    getState(): ControllerState {
-        return this.controllerState;
-    }
-
-    setTransmissionId(transmissionId: string | null) {
-        this.transmissionId = transmissionId;
-    }
-
-    getTransmission(): Transmission | undefined {
-        if (this.controllerState !== ControllerState.READY || !this.transmissionId) return undefined;
-        return this.webRtcManager.transmissionManager.getTransmission(this.remoteSid, this.transmissionId);
-    }   
-
-    getRemoteSid(): string {
-        return this.remoteSid;
-    }
-
 }

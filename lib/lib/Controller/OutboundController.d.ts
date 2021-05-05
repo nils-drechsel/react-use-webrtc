@@ -1,24 +1,22 @@
+import { UnsubscribeCallback } from "react-use-listeners";
 import { MediaObject, MediaStreamObject } from "../Media/MediaDevicesManager";
-import { Transmission } from "../Transmission/TransmissionManager";
 import { WebRtcManager } from "../WebRtcManager";
-import { RemoteController, AbstractRemoteController } from "./Controller";
-import { LocalController } from "./LocalController";
+import { AbstractRemoteController, RemoteController } from "./RemoteController";
 export interface OutboundController<T extends MediaObject = MediaObject> extends RemoteController<T> {
-    load(mediaObject: T): void;
 }
 export declare abstract class AbstractOutboundController<T extends MediaObject = MediaObject> extends AbstractRemoteController<T> implements OutboundController<T> {
-    localController: LocalController<T>;
-    transmissionId: string | null;
-    constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, localController: LocalController<T>);
-    abstract load(): void;
-    protected notify(): void;
-}
-export declare class OutboundStreamController extends AbstractOutboundController<MediaStreamObject> {
-    load(): void;
+    unsubscribeMediaObject: UnsubscribeCallback | null;
+    unsubscribeLocalController: UnsubscribeCallback;
+    localControllerId: string;
+    constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, type: string, localControllerId: string);
+    load(mediaObjectId: string): void;
     start(): void;
+    ready(): void;
     fail(): void;
-    restart(): void;
-    close(): void;
     stop(): void;
-    getTransmission(): Transmission | undefined;
+    protected notify(): void;
+    destroy(): void;
+}
+export declare abstract class AbstractOutboundStreamController extends AbstractOutboundController<MediaStreamObject> {
+    ready(): void;
 }
