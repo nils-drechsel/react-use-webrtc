@@ -19,7 +19,7 @@ export class ControllerManager {
 
     outboundControllers: ObservedMapMap<OutboundController> = new ObservedMapMapImpl();
     localControllers: ObservedMap<LocalController> = new ObservedMapImpl();
-    inboundControllers: ObservedMap<InboundController> = new ObservedMapImpl();
+    inboundControllers: ObservedMapMap<InboundController> = new ObservedMapMapImpl();
 
     inboundControllerBuilder: InboundControllerBuilder;
 
@@ -32,73 +32,89 @@ export class ControllerManager {
 
         this.webRtcManager.signallingChannel.addListener(
             RtcControllerMessage.RTC_ADD_INBOUND_CONTROLLER,
-            (payload, fromSid) => this.inboundControllerAdded(fromSid!, payload)
+            (payload, remoteSid) => this.inboundControllerAdded(remoteSid!, payload)
         );
         this.webRtcManager.signallingChannel.addListener(
             RtcControllerMessage.RTC_REMOVE_INBOUND_CONTROLLER,
-            (payload, fromSid) => this.inboundControllerRemoved(fromSid!, payload)
+            (payload, remoteSid) => this.inboundControllerRemoved(remoteSid!, payload)
         );
         this.webRtcManager.signallingChannel.addListener(
             RtcControllerMessage.RTC_MODIFY_INBOUND_CONTROLLER,
-            (payload, fromSid) => this.inboundControllerModified(fromSid!, payload)
+            (payload, remoteSid) => this.inboundControllerModified(remoteSid!, payload)
         );
-    }
-
-    getInboundController(controllerId: string): InboundController<MediaObject> | undefined {
-        return this.inboundControllers.get(controllerId);
     }
 
     getLocalController(controllerId: string): LocalController<MediaObject> | undefined {
         return this.localControllers.get(controllerId);
     }
 
-    inboundControllerAdded(fromSid: string, payload: AddInboundControllerPayload) {
-        if (this.logging) console.log("inbound controller was added. sid:", fromSid, payload);
-        if (this.inboundControllers.has(payload.controllerId)) return;
+    inboundControllerAdded(remoteSid: string, payload: AddInboundControllerPayload) {
+        if (this.logging) console.log("inbound controller was added. sid:", remoteSid, payload);
+        if (this.inboundControllers.hasSub(remoteSid, payload.controllerId)) return;
         const controller = this.inboundControllerBuilder(
             this.webRtcManager,
-            fromSid,
+            remoteSid,
             payload.label,
             payload.controllerId,
             payload.type
         );
-        this.inboundControllers.set(controller.getControllerId(), controller);
+        this.inboundControllers.setSub(remoteSid, controller.getControllerId(), controller);
     }
 
-    inboundControllerRemoved(fromSid: string, payload: RemoveInboundControllerPayload) {
-        if (this.logging) console.log("inbound controller was removed. sid: ", fromSid, payload);
-        if (!this.inboundControllers.has(payload.controllerId)) return;
-        const controller = this.inboundControllers.get(payload.controllerId)!;
-        if (controller.getRemoteSid() !== fromSid) return; // would be weird if we'd ever see this
+    inboundControllerRemoved(remoteSid: string, payload: RemoveInboundControllerPayload) {
+        if (this.logging) console.log("inbound controller was removed. sid: ", remoteSid);
+        if (!this.inboundControllers.hasSub(remoteSid, payload.controllerId)) return;
+        const controller = this.inboundControllers.getSub(remoteSid, payload.controllerId)!;
         controller.destroy();
+        this.inboundControllers.deleteSub(remoteSid, payload.controllerId);
+        this.disconnectP2pIfPossible(remoteSid);
     }
 
-    inboundControllerModified(fromSid: string, payload: ModifyInboundControllerPayload) {
-        if (this.logging) console.log("inbound controller was modified. sid: ", fromSid, payload);
-        if (!this.inboundControllers.has(payload.controllerId)) return;
-        const controller = this.inboundControllers.get(payload.controllerId)!;
+    inboundControllerModified(remoteSid: string, payload: ModifyInboundControllerPayload) {
+        if (this.logging) console.log("inbound controller was modified. sid: ", remoteSid, payload);
+        if (!this.inboundControllers.hasSub(remoteSid, payload.controllerId)) return;
+        const controller = this.inboundControllers.getSub(remoteSid, payload.controllerId)!;
         controller.setRemoteState(payload.state);
         if (payload.mediaObjectId) controller.load(payload.mediaObjectId);
     }
 
-    outboundControllerModified(fromSid: string, payload: ModifyOutboundControllerPayload) {
-        if (this.logging) console.log("outbound controller was modified. sid: ", fromSid, payload);
-        if (!this.outboundControllers.has(payload.controllerId)) return;
-        const controller = this.outboundControllers.getSub(fromSid, payload.controllerId)!;
+    removeInboundController(remoteSid: string, controllerId: string) {
+        if (this.logging)
+            console.log("inbound controller was removed. remoteSid:", remoteSid, "resourceId: ", controllerId);
+        if (!this.inboundControllers.hasSub(remoteSid, controllerId)) return;
+        const controller = this.inboundControllers.getSub(remoteSid, controllerId)!;
+        controller.destroy();
+        this.inboundControllers.deleteSub(remoteSid, controllerId);
+        this.disconnectP2pIfPossible(remoteSid);
+    }
+
+    removeInboundParticipant(remoteSid: string): void {
+        this.inboundControllers.forEachSub(remoteSid, (controller) => {
+            controller.destroy();
+        });
+        this.inboundControllers.delete(remoteSid);
+        this.disconnectP2pIfPossible(remoteSid);
+    }
+
+    outboundControllerModified(remoteSid: string, payload: ModifyOutboundControllerPayload) {
+        if (this.logging) console.log("outbound controller was modified. sid: ", remoteSid, payload);
+        if (!this.outboundControllers.hasSub(remoteSid, payload.controllerId)) return;
+        const controller = this.outboundControllers.getSub(remoteSid, payload.controllerId)!;
         controller.setRemoteState(payload.state);
     }
 
     addLocalController(localController: LocalController) {
-        if (this.logging)
-            console.log("local camera stream controller was added. resourceId: ", localController.getControllerId());
+        if (this.logging) console.log("local controller was added. controllerId: ", localController.getControllerId());
         this.localControllers.set(localController.getControllerId(), localController);
     }
 
     addOutboundController(remoteSid: string, localController: LocalController): OutboundController {
+        if (this.logging)
+            console.log("outbound/inbound controller pair was added. resourceId: ", localController.getControllerId());
         const payload: AddInboundControllerPayload = {
             controllerId: localController.getControllerId(),
             label: localController.getLabel(),
-            state: ControllerState.STARTING,
+            state: ControllerState.STOPPED,
             type: localController.getType(),
         };
         this.webRtcManager.signallingChannel.send(RtcControllerMessage.RTC_ADD_INBOUND_CONTROLLER, payload, remoteSid);
@@ -122,6 +138,21 @@ export class ControllerManager {
             payload,
             remoteSid
         );
+        this.outboundControllers.deleteSub(remoteSid, controllerId);
+        this.disconnectP2pIfPossible(remoteSid);
+    }
+
+    disconnectP2pIfPossible(remoteSid: string) {
+        console.log(
+            "disconnecting p2p if possible",
+            this.outboundControllers.has(remoteSid),
+            this.inboundControllers.has(remoteSid),
+            this.inboundControllers
+        );
+        if (!this.outboundControllers.has(remoteSid) && !this.inboundControllers.has(remoteSid)) {
+            if (this.logging) console.log("disconnecting remote sid", remoteSid);
+            this.webRtcManager.transmissionManager.disconnect(remoteSid);
+        }
     }
 
     removeLocalController(controllerId: string) {
@@ -129,9 +160,11 @@ export class ControllerManager {
         if (!this.localControllers.has(controllerId)) return;
         const controller = this.localControllers.get(controllerId)!;
         controller.destroy();
+        this.localControllers.delete(controllerId);
     }
 
     sendModifyInboundController(remoteSid: string, payload: ModifyInboundControllerPayload) {
+        if (this.logging) console.log("sending modify inbound controller", remoteSid, payload);
         this.webRtcManager.signallingChannel.send(
             RtcControllerMessage.RTC_MODIFY_INBOUND_CONTROLLER,
             payload,
@@ -140,6 +173,7 @@ export class ControllerManager {
     }
 
     sendModifyOutboundController(remoteSid: string, payload: ModifyOutboundControllerPayload) {
+        if (this.logging) console.log("sending modify outbound controller", remoteSid, payload);
         this.webRtcManager.signallingChannel.send(
             RtcControllerMessage.RTC_MODIFY_OUTBOUND_CONTROLLER,
             payload,
@@ -155,7 +189,20 @@ export class ControllerManager {
         return this.localControllers;
     }
 
-    getInboundControllers(): ObservedMap<InboundController<MediaObject>> {
+    getInboundControllers(): ObservedMapMap<InboundController<MediaObject>> {
         return this.inboundControllers;
+    }
+
+    destroy() {
+        this.localControllers.forEach((controller) => {
+            this.removeLocalController(controller.getControllerId());
+        });
+        this.outboundControllers.forEach((controller, remoteSid) => {
+            this.removeOutboundController(remoteSid, controller.getControllerId());
+        });
+
+        this.inboundControllers.forEach((controller, remoteSid) => {
+            this.removeInboundController(remoteSid, controller.getControllerId());
+        });
     }
 }

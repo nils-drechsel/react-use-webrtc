@@ -499,10 +499,10 @@ randombytes@^2.1.0:
   dependencies:
     safe-buffer "^5.1.0"
 
-react-use-listeners@^3.0.3:
-  version "3.0.3"
-  resolved "https://registry.yarnpkg.com/react-use-listeners/-/react-use-listeners-3.0.3.tgz#2dd655ea118b3a50994a6624f66917993c82c141"
-  integrity sha512-bNH0FBowhgmh9eEGyeLz61Adh3WwMQr74JAAGPi0TkcuLRhG2kyJaWVIh9Ie3q8kzwfzr2m5dol75hILlCI7zw==
+react-use-listeners@^3.0.6:
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/react-use-listeners/-/react-use-listeners-3.0.6.tgz#d5a757163e42fb98590f4046a6b191c1843e366b"
+  integrity sha512-O4WG0CcS5SN0lTi6aBqN2MxFEJYGujo4ddlqjYmsZlx15Hy4/J41MTfevvGKB/+tjsDQIznmJgxeFsMLEr8H4Q==
   dependencies:
     chai "^4.3.4"
     mocha "^8.3.2"

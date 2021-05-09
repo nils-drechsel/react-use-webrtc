@@ -44,7 +44,7 @@ export abstract class AbstractOutboundController<T extends MediaObject = MediaOb
                                 if (this.getState() !== ControllerState.STARTING) this.start();
                                 break;
                             case ControllerState.READY:
-                                if (this.getState() !== ControllerState.READY && this.getMediaObject())
+                                if (this.getState() !== ControllerState.READY && localController.getMediaObjectId())
                                     this.load(localController.getMediaObjectId()!);
                                 break;
                             case ControllerState.FAILED:
@@ -60,7 +60,10 @@ export abstract class AbstractOutboundController<T extends MediaObject = MediaOb
                         break;
 
                     case ListenerEvent.REMOVED:
-                        this.destroy();
+                        this.webRtcManager.controllerManager.removeOutboundController(
+                            this.remoteSid,
+                            this.controllerId
+                        );
                         break;
                     default:
                         throw new Error("unknown event " + event);
@@ -82,7 +85,7 @@ export abstract class AbstractOutboundController<T extends MediaObject = MediaOb
                     this.localControllerId
                 );
                 if (!localController) {
-                    this.destroy();
+                    this.webRtcManager.controllerManager.removeOutboundController(this.remoteSid, this.controllerId);
                     return;
                 }
                 switch (event) {
@@ -144,7 +147,6 @@ export abstract class AbstractOutboundController<T extends MediaObject = MediaOb
     destroy(): void {
         this.unsubscribeLocalController();
         this.stop();
-        this.webRtcManager.controllerManager.removeOutboundController(this.remoteSid, this.controllerId);
     }
 }
 

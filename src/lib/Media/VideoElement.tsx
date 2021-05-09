@@ -67,6 +67,7 @@ export const VideoElement: FunctionComponent<Props> = ({
                     if (ref.current && obj.stream && ref.current.srcObject !== obj.stream) {
                         console.log("updating stream", streamId);
                         ref.current.srcObject = obj.stream;
+                        ref.current.play();
                     }
                     break;
 

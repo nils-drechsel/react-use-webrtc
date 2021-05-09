@@ -21,12 +21,11 @@ export abstract class AbstractInboundController<T extends MediaObject = MediaObj
     abstract getMediaItem(): MediaItem;
 
     protected notify() {
-        this.webRtcManager.controllerManager.inboundControllers.modify(this.getControllerId());
+        this.webRtcManager.controllerManager.inboundControllers.modifySub(this.remoteSid, this.getControllerId());
     }
 
     destroy() {
         this.stop();
-        this.webRtcManager.controllerManager.inboundControllers.delete(this.getControllerId());
     }
 
     start() {
@@ -59,6 +58,23 @@ export abstract class AbstractInboundController<T extends MediaObject = MediaObj
             state: ControllerState.STOPPED,
         });
         super.stop();
+    }
+
+    setRemoteState(state: ControllerState) {
+        super.setRemoteState(state);
+        switch (state) {
+            case ControllerState.STARTING:
+                this.start();
+                break;
+            case ControllerState.READY:
+                break;
+            case ControllerState.FAILED:
+                this.fail();
+                break;
+            case ControllerState.STOPPED:
+                this.stop();
+                break;
+        }
     }
 }
 
@@ -93,16 +109,11 @@ export abstract class AbstractTransmissionInboundController<
         );
     }
 
-    private removeStream() {
-        if (this.mediaObjectId) this.webRtcManager.mediaDevicesManager.removeMediaObject(this.mediaObjectId);
-    }
-
     stop() {
         if (this.unsubscribeMediaObject) {
             this.unsubscribeMediaObject();
             this.unsubscribeMediaObject = null;
         }
-        this.removeStream();
         super.stop();
     }
 }

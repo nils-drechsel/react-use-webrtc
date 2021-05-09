@@ -257,6 +257,8 @@ export class TransmissionManager {
     }
 
     destroy() {
-        // FIXME
+        this.connections.forEach((_connection, remoteSid) => {
+            this.disconnect(remoteSid);
+        });
     }
 }

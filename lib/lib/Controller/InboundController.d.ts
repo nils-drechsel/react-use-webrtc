@@ -1,4 +1,5 @@
 import { MediaItem, MediaObject } from "../Media/MediaDevicesManager";
+import { ControllerState } from "./Controller";
 import { UnsubscribeCallback } from "react-use-listeners";
 import { WebRtcManager } from "../WebRtcManager";
 import { AbstractRemoteController, RemoteController } from "./RemoteController";
@@ -16,11 +17,11 @@ export declare abstract class AbstractInboundController<T extends MediaObject = 
     ready(): void;
     fail(): void;
     stop(): void;
+    setRemoteState(state: ControllerState): void;
 }
 export declare abstract class AbstractTransmissionInboundController<T extends MediaObject = MediaObject> extends AbstractInboundController<T> {
     unsubscribeMediaObject: UnsubscribeCallback | null;
     constructor(webRtcManager: WebRtcManager, remoteSid: string, label: string, type: string, controllerId: string);
     load(mediaObjectId: string): void;
-    private removeStream;
     stop(): void;
 }

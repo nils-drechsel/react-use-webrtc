@@ -13,4 +13,5 @@ export declare class WebRtcManager {
     signallingChannel: SignallingChannel;
     constructor(signallingChannel: SignallingChannel, sid: string, configuration: RTCConfiguration, inboundControllerBuilder: InboundControllerBuilder, logging?: boolean);
     setSid(sid: string): void;
+    destroy(): void;
 }

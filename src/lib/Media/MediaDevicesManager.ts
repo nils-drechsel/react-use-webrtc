@@ -264,7 +264,6 @@ export class MediaDevicesManager {
 
     removeMediaObject(objId: string) {
         if (this.logging) console.log("removing media object", objId);
-        this.stopStream(objId);
         this.mediaObjects.delete(objId);
     }
 
@@ -342,11 +341,7 @@ export class MediaDevicesManager {
         }
     }
 
-    async getCameraStream(
-        objId: string,
-        cameraDeviceId?: string | null,
-        audioDeviceId?: string | null
-    ): Promise<MediaStreamObject> {
+    async getCameraStream(cameraDeviceId?: string | null, audioDeviceId?: string | null): Promise<MediaStreamObject> {
         if (this.logging) console.log("local camera stream", cameraDeviceId, audioDeviceId);
 
         await this.assertMediaPermissions();
@@ -355,7 +350,7 @@ export class MediaDevicesManager {
         if (cameraDeviceId) Object.assign(constraints, { video: { deviceId: { exact: cameraDeviceId } } });
         if (audioDeviceId) Object.assign(constraints, { audio: { deviceId: { exact: audioDeviceId } } });
 
-        return await this.getStream(objId, false, constraints);
+        return await this.getStream(false, constraints);
     }
 
     async getScreenStream(objId: string): Promise<MediaStreamObject> {
@@ -363,7 +358,7 @@ export class MediaDevicesManager {
 
         this.removeMediaObject(objId);
 
-        return await this.getStream(objId, true, undefined);
+        return await this.getStream(true, undefined);
     }
 
     private async getVideoFeed(constraints?: MediaStreamConstraints): Promise<MediaStream> {
@@ -375,21 +370,20 @@ export class MediaDevicesManager {
     }
 
     private async getStream(
-        objId: string,
         screenshare: boolean,
         constraints?: MediaStreamConstraints | undefined
     ): Promise<MediaStreamObject> {
-        if (this.logging) console.log("loading stream", objId);
+        if (this.logging) console.log("loading stream");
 
         try {
             let stream: MediaStream;
 
             if (screenshare) {
                 stream = await this.getScreenFeed();
-                return this.addLocalScreenStream(objId, stream);
+                return this.addLocalScreenStream(stream.id, stream);
             } else {
                 stream = await this.getVideoFeed(constraints);
-                return this.addLocalCameraStream(objId, stream);
+                return this.addLocalCameraStream(stream.id, stream);
             }
         } catch (e) {
             if (this.logging) console.log("error loading stream", e);
@@ -445,7 +439,10 @@ export class MediaDevicesManager {
     }
 
     destroy() {
-        Array.from(this.mediaObjects.keys()).forEach((objId: string) => {
+        this.mediaObjects.forEach((obj, objId: string) => {
+            if (obj.type === MediaType.STREAM) {
+                this.stopStream(objId);
+            }
             this.removeMediaObject(objId);
         });
     }

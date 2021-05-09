@@ -1,1 +1,1 @@
-{"version":3,"file":"WebRtcContext.js","sourceRoot":"","sources":["../../src/lib/WebRtcContext.ts"],"names":[],"mappings":";;;AAAA,iCAAsC;AAGzB,QAAA,aAAa,GAAG,qBAAa,CAAuB,IAAI,CAAC,CAAC;AAEvE,kBAAe,qBAAa,CAAC"}
+{"version":3,"file":"WebRtcContext.js","sourceRoot":"","sources":["../../src/lib/WebRtcContext.ts"],"names":[],"mappings":";;;AAAA,iCAAsC;AAGzB,QAAA,aAAa,GAAG,qBAAa,CAAiB,IAAiC,CAAC,CAAC;AAE9F,kBAAe,qBAAa,CAAC"}

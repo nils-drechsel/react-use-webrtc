@@ -32,7 +32,6 @@ export abstract class AbstractLocalController<T extends MediaObject>
 
     destroy(): void {
         this.stop();
-        this.webRtcManager.controllerManager.localControllers.delete(this.getControllerId());
     }
 
     protected notify() {
@@ -41,21 +40,24 @@ export abstract class AbstractLocalController<T extends MediaObject>
     }
 
     stop() {
-        this.webRtcManager.mediaDevicesManager.removeMediaObject(this.controllerId);
         if (this.unsubscribeMediaObject) {
             this.unsubscribeMediaObject();
             this.unsubscribeMediaObject = null;
         }
+        if (this.mediaObjectId) this.webRtcManager.mediaDevicesManager.removeMediaObject(this.mediaObjectId);
+        this.mediaObjectId = null;
         super.stop();
     }
 
     load(mediaObjectId: string) {
+        console.log("loading mediaObject", this.getControllerId(), "objId:", mediaObjectId);
         if (this.unsubscribeMediaObject) this.unsubscribeMediaObject();
         this.setMediaObjectId(mediaObjectId);
 
         this.unsubscribeMediaObject = this.webRtcManager.mediaDevicesManager.mediaObjects.addIdListener(
-            this.getControllerId(),
+            mediaObjectId,
             (_id, event) => {
+                console.log("media object changed: ", mediaObjectId, event, this.getState());
                 switch (event) {
                     case ListenerEvent.ADDED:
                         if (this.getState() !== ControllerState.READY) this.ready();
@@ -78,9 +80,8 @@ export abstract class AbstractLocalStreamController
     }
 
     stop() {
-        console.log("stopping local controller", this.getControllerId());
-        const obj: MediaStreamObject | undefined = this.getMediaObject();
-        if (obj) this.webRtcManager.mediaDevicesManager.stopStream(obj.objId);
+        console.log("stopping local stream controller", this.getControllerId(), this.mediaObjectId);
+        if (this.mediaObjectId) this.webRtcManager.mediaDevicesManager.stopStream(this.mediaObjectId);
         super.stop();
     }
 }
