@@ -101,6 +101,7 @@ export abstract class AbstractTransmissionInboundController<
                     case ListenerEvent.ADDED:
                     case ListenerEvent.MODIFIED:
                         if (this.getState() !== ControllerState.READY && this.getMediaObject()) this.ready();
+                        else this.notify();
                         break;
                     case ListenerEvent.REMOVED:
                         this.stop();

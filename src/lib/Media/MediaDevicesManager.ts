@@ -160,6 +160,7 @@ export class MediaDevicesManager {
 
     updateStreamDimensions(objId: string, width: number, height: number) {
         const mediaObj = this.mediaObjects.get(objId);
+        if (this.logging) console.log("updating stream dimensions", objId, width, height, mediaObj);
         if (!mediaObj || mediaObj.type !== MediaType.STREAM) return;
         const mediaStreamObject = mediaObj as MediaStreamObject;
         mediaStreamObject.width = width;
@@ -353,10 +354,8 @@ export class MediaDevicesManager {
         return await this.getStream(false, constraints);
     }
 
-    async getScreenStream(objId: string): Promise<MediaStreamObject> {
+    async getScreenStream(): Promise<MediaStreamObject> {
         await this.assertMediaPermissions();
-
-        this.removeMediaObject(objId);
 
         return await this.getStream(true, undefined);
     }

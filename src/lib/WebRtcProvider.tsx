@@ -19,18 +19,19 @@ export const WebRtcProvider: FunctionComponent<Props> = ({
     inboundControllerBuilder,
     logging,
 }) => {
-    const [manager] = useState<WebRtcManager>(
-        new WebRtcManager(signallingChannel, sid, config, inboundControllerBuilder, logging)
-    );
+    const [manager, setManager] = useState<WebRtcManager | null>();
 
     useEffect(() => {
+        const manager = new WebRtcManager(signallingChannel, sid, config, inboundControllerBuilder, logging);
+        setManager(manager);
+
         return () => {
             manager.destroy();
         };
-    });
+    }, []);
 
     useEffect(() => {
-        manager.setSid(sid);
+        if (manager) manager.setSid(sid);
     }, [manager, sid]);
 
     if (!manager) return null;

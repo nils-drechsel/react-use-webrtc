@@ -90,7 +90,7 @@ export declare class MediaDevicesManager {
     private requestMediaPermissions;
     private assertMediaPermissions;
     getCameraStream(cameraDeviceId?: string | null, audioDeviceId?: string | null): Promise<MediaStreamObject>;
-    getScreenStream(objId: string): Promise<MediaStreamObject>;
+    getScreenStream(): Promise<MediaStreamObject>;
     private getVideoFeed;
     private getScreenFeed;
     private getStream;

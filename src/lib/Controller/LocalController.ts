@@ -64,6 +64,10 @@ export abstract class AbstractLocalController<T extends MediaObject>
                         break;
                     case ListenerEvent.REMOVED:
                         if (this.getState() !== ControllerState.STOPPED) this.stop();
+                        break;
+                    case ListenerEvent.ADDED:
+                        this.notify();
+                        break;
                 }
             }
         );
